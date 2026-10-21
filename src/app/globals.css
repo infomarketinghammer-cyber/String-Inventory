@@ -1,0 +1,231 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens — palette taken from the Greenticker logo:
+ *   brand green  #1F8A4C (lettering)   deep green #0E5A33 (navigation)
+ *   sky blue     #29ABE2 (coin)        deep blue  #0B7BB8 (accents/links)
+ */
+:root {
+  --bg: #f3f6f4;
+  --fg: #12261b;
+  --card: #ffffff;
+  --border: #dfe7e2;
+  --muted: #5f7368;
+
+  --brand: #1f8a4c;
+  --brand-hover: #18733f;
+  --brand-soft: #e7f4ec;
+  --brand-ink: #0e5a33;
+  --accent: #29abe2;
+  --accent-ink: #0b7bb8;
+  --accent-soft: #e6f5fc;
+
+  --nav-bg: #0e5a33;
+  --nav-bg-2: #0b4a2a;
+  --nav-fg: #e6f2ea;
+  --nav-muted: #9cc7ae;
+  --nav-hover: rgba(255, 255, 255, 0.08);
+  --nav-active: rgba(255, 255, 255, 0.14);
+
+  --shadow: 0 1px 2px rgba(16, 40, 27, 0.06), 0 1px 3px rgba(16, 40, 27, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1410;
+    --fg: #e4eee8;
+    --card: #121e18;
+    --border: #22352b;
+    --muted: #93a99c;
+    --brand: #2fa862;
+    --brand-hover: #3bbd71;
+    --brand-soft: #16301f;
+    --brand-ink: #7fd3a1;
+    --accent-ink: #5cc3ee;
+    --accent-soft: #10283a;
+    --nav-bg: #0a3d23;
+    --nav-bg-2: #08301c;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1410;
+  --fg: #e4eee8;
+  --card: #121e18;
+  --border: #22352b;
+  --muted: #93a99c;
+  --brand: #2fa862;
+  --brand-hover: #3bbd71;
+  --brand-soft: #16301f;
+  --brand-ink: #7fd3a1;
+  --accent-ink: #5cc3ee;
+  --accent-soft: #10283a;
+  --nav-bg: #0a3d23;
+  --nav-bg-2: #08301c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* ---------- surfaces ---------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow);
+}
+
+/* page titles inside <main> */
+main h1 {
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+main h2 {
+  color: var(--fg);
+}
+
+/* ---------- tables ---------- */
+main table thead tr {
+  border-bottom: 1px solid var(--border);
+}
+main table th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+main table tbody tr:hover {
+  background: color-mix(in srgb, var(--brand-soft) 55%, transparent);
+}
+
+/* ---------- form controls ---------- */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  border-color: var(--border);
+  background-color: var(--card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--brand);
+}
+input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- buttons & links ---------- */
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  transition: background 0.15s;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+.btn-primary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--brand-ink);
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-secondary:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+}
+main a.underline,
+main button.underline {
+  color: var(--accent-ink);
+  text-underline-offset: 3px;
+}
+main a.underline:hover,
+main button.underline:hover {
+  color: var(--brand);
+}
+
+/* ---------- navigation ---------- */
+.app-nav {
+  background: linear-gradient(180deg, var(--nav-bg) 0%, var(--nav-bg-2) 100%);
+  color: var(--nav-fg);
+}
+.app-nav .nav-group {
+  color: var(--nav-muted);
+}
+.app-nav .nav-link {
+  color: var(--nav-fg);
+  border-left: 3px solid transparent;
+}
+.app-nav .nav-link:hover {
+  background: var(--nav-hover);
+}
+.app-nav .nav-link[aria-current="page"] {
+  background: var(--nav-active);
+  border-left-color: var(--accent);
+  font-weight: 600;
+  color: #fff;
+}
+.app-nav::-webkit-scrollbar {
+  width: 8px;
+}
+.app-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+}
+
+/* ---------- badges ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-hold { background: #fef3c7; color: #92400e; }
+.badge-available { background: #dcf3e5; color: #14653a; }
+.badge-rejected { background: #fee2e2; color: #991b1b; }
+.badge-atjw { background: #e0f2fe; color: #075985; }
+
+@media print {
+  .no-print { display: none !important; }
+  /* print the page content only, without the fixed app shell scroll container */
+  .app-shell, .app-main { display: block !important; height: auto !important; overflow: visible !important; }
+}

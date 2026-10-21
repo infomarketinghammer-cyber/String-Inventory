@@ -1,0 +1,42 @@
+# Dependencies / build output
+node_modules/
+.next/
+dist/
+coverage/
+test-results/
+playwright-report/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# System / tooling dirs that happen to live alongside the project in this
+# environment (home directory == project directory here) — never project files.
+.cache/
+.config/
+.npm/
+.npm-global/
+.claude/
+.gitconfig
+.ssh/
+.local/
+.cargo/
+.rustup/
+.bun/
+.nvm/
+.vscode-server/
+
+*.log
+.DS_Store
+
+# Local SQLite databases (hold real data — never commit)
+*.db
+*.db-journal
+.pki/
+.wget-hsts
+tsconfig.tsbuildinfo
+
+# Uploaded GRN receipts
+uploads/
+uploads-*/

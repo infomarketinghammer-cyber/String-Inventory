@@ -1,0 +1,21 @@
+# Single container. Data lives in a SQLite file on the named volume `inventory-data`,
+# so it survives restarts and rebuilds. No separate database service is needed.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/data/inventory.db
+      UPLOAD_DIR: /data/uploads
+      AUTH_SECRET: ${AUTH_SECRET:-dev-secret-change-me-in-production-please}
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_URL: http://localhost:3000
+      NODE_ENV: production
+    volumes:
+      - inventory-data:/data
+    ports:
+      - "3000:3000"
+
+volumes:
+  inventory-data:
+
