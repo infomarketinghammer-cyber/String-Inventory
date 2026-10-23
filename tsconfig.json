@@ -19,5 +19,7 @@
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  // The one-off SQLite -> MongoDB copy needs a reader client that only exists where it was generated
+  // (prisma/sqlite/schema.prisma); it is run with tsx, not part of the app build.
+  "exclude": ["node_modules", "prisma/copy-sqlite-to-mongo.ts", "prisma/sqlite"]
 }

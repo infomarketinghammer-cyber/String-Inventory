@@ -9,3 +9,9 @@ playwright-report
 *.db
 *.db-journal
 uploads
+# Old local database / one-off migration material: not needed in the image (data is in MongoDB).
+prisma/backups
+prisma/sqlite
+prisma/copy-sqlite-to-mongo.ts
+prisma/migrations
+prisma/postgres-backup
