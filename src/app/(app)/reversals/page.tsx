@@ -1,3 +1,4 @@
+import { Field } from "@/components/Field";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/server/auth/session";
 import { can } from "@/server/policy";
@@ -43,9 +44,11 @@ export default async function ReversalsPage(props: { searchParams: Promise<{ ok?
                   {formatKg(r.qty)} {r.uom}
                 </td>
                 <td>
-                  <form action={reverseTransactionAction} className="flex gap-1 items-center">
+                  <form action={reverseTransactionAction} className="flex gap-1 items-end">
                     <input type="hidden" name="ledgerId" value={r.id} />
-                    <input aria-label="Reason" name="reason" placeholder="Reason" required className="w-28 rounded border px-1 py-1 bg-transparent text-xs" />
+                    <Field label="Reason">
+                      <input name="reason" placeholder="Reason" required className="w-28 rounded border px-1 py-1 bg-transparent text-xs" />
+                    </Field>
                     <button type="submit" className="text-xs underline">
                       Reverse
                     </button>

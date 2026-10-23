@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { UPLOAD_ACCEPT, UPLOAD_HINT } from "@/lib/uploads";
 import { createGrnAction } from "./actions";
 
 interface PoLine {
@@ -21,7 +22,7 @@ interface Po {
 const field = "w-full rounded border px-2 py-1.5 bg-transparent";
 const label = "block text-sm font-medium mb-1";
 
-export function GrnForm({ pos }: { pos: Po[] }) {
+export function GrnForm({ pos, today }: { pos: Po[]; today: string }) {
   const [poId, setPoId] = useState("");
   const [rows, setRows] = useState([{ key: 0 }]);
   const [nextKey, setNextKey] = useState(1);
@@ -51,15 +52,16 @@ export function GrnForm({ pos }: { pos: Po[] }) {
         </div>
         <div>
           <label htmlFor="grn-invoiceDate" className={label}>
-            Invoice Date
+            Invoice Date <span className="text-red-600">*</span>
           </label>
-          <input id="grn-invoiceDate" name="invoiceDate" type="date" className={field} />
+          {/* Compulsory; no post-dated invoices (the server checks both too). */}
+          <input id="grn-invoiceDate" name="invoiceDate" type="date" max={today} required className={field} />
         </div>
         <div>
           <label htmlFor="grn-vehicleNo" className={label}>
-            Vehicle No.
+            Vehicle No. <span className="text-red-600">*</span>
           </label>
-          <input id="grn-vehicleNo" name="vehicleNo" className={field} />
+          <input id="grn-vehicleNo" name="vehicleNo" required placeholder="e.g. MH12AB1234" className={field} />
         </div>
         <div className="md:col-span-3">
           <label htmlFor="grn-receipt" className={label}>
@@ -69,11 +71,11 @@ export function GrnForm({ pos }: { pos: Po[] }) {
             id="grn-receipt"
             name="receipt"
             type="file"
-            accept="application/pdf,image/png,image/jpeg,image/webp"
+            accept={UPLOAD_ACCEPT}
             className="block w-full text-sm"
           />
           <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-            PDF, PNG, JPG or WEBP, up to 5 MB. Optional; it can also be attached later from the GRN list.
+            {UPLOAD_HINT}
           </p>
         </div>
       </div>

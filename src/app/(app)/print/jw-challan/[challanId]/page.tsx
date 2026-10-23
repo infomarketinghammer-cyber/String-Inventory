@@ -32,6 +32,7 @@ export default async function JwChallanPrintPage(props: { params: Promise<{ chal
         <div className="text-right text-sm">
           <div className="font-semibold">{challan.challanNo}</div>
           <div>Date: {formatDate(challan.date)}</div>
+          <div>Vehicle No.: {challan.vehicleNo ?? "-"}</div>
           <div>Expected return: {formatDate(challan.expectedReturnDate)}</div>
         </div>
       </div>

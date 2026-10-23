@@ -1,3 +1,4 @@
+import { Field } from "@/components/Field";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/server/auth/session";
 import { can } from "@/server/policy";
@@ -89,10 +90,16 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
           ))}
         </Table>
         {canManage && (
-          <form action={createItemAction} className="mt-3 flex gap-2 flex-wrap">
-            <input aria-label="Item code" name="itemCode" placeholder="Item code" required className={input} />
-            <input aria-label="Grade" name="grade" placeholder="Grade" required className={input} />
-            <input aria-label="Diameter mm" name="diameterMm" type="number" step="0.01" placeholder="Diameter mm" required className={input} />
+          <form action={createItemAction} className="mt-3 flex gap-2 flex-wrap items-end">
+            <Field label="Item code">
+              <input name="itemCode" placeholder="Item code" required className={input} />
+            </Field>
+            <Field label="Grade">
+              <input name="grade" placeholder="Grade" required className={input} />
+            </Field>
+            <Field label="Diameter mm">
+              <input name="diameterMm" type="number" step="0.01" placeholder="Diameter mm" required className={input} />
+            </Field>
             <button type="submit" className={btn}>
               Add item
             </button>
@@ -124,54 +131,78 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
         {canManage && (
           <div className="mt-4 space-y-3">
             <form action={createPartAction} className="flex gap-2 flex-wrap items-end">
-              <input aria-label="Part no." name="partNo" placeholder="Part no." required className={input} />
-              <select aria-label="Customer" name="customerId" required className={input}>
-                <option value="">Customer…</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <input aria-label="Description" name="description" placeholder="Description" required className={input} />
-              <input aria-label="Net wt/pc (kg)" name="netWtPerPcKg" type="number" step="0.0001" min="0" placeholder="Net wt/pc (kg)" required className={input} />
-              <input aria-label="Scrap %" name="scrapAllowancePct" type="number" step="0.1" min="0" defaultValue={0} placeholder="Scrap %" className={`${input} w-24`} />
+              <Field label="Part no.">
+                <input name="partNo" placeholder="Part no." required className={input} />
+              </Field>
+              <Field label="Customer">
+                <select name="customerId" required className={input}>
+                  <option value="">Customer…</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Description">
+                <input name="description" placeholder="Description" required className={input} />
+              </Field>
+              <Field label="Net wt/pc (kg)">
+                <input name="netWtPerPcKg" type="number" step="0.0001" min="0" placeholder="Net wt/pc (kg)" required className={input} />
+              </Field>
+              <Field label="Scrap %">
+                <input name="scrapAllowancePct" type="number" step="0.1" min="0" defaultValue={0} placeholder="Scrap %" className={`${input} w-24`} />
+              </Field>
               <button type="submit" className={btn}>
                 Add part
               </button>
             </form>
             <form action={addBomLineAction} className="flex gap-2 flex-wrap items-end">
-              <select aria-label="Part" name="partId" required className={input}>
-                <option value="">Add routing step to…</option>
-                {parts.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.partNo}
-                  </option>
-                ))}
-              </select>
-              <input aria-label="Seq" name="opSeq" type="number" min="1" placeholder="Seq" required className={`${input} w-20`} />
-              <input aria-label="Operation (e.g. Coiling)" name="opName" placeholder="Operation (e.g. Coiling)" required className={input} />
-              <select aria-label="Op Type" name="opType" className={input} defaultValue="IN_HOUSE">
-                <option value="IN_HOUSE">In-house</option>
-                <option value="JOB_WORK">Job work</option>
-              </select>
-              <select aria-label="Item" name="itemId" className={input}>
-                <option value="">Wire item (step 1)…</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.itemCode}
-                  </option>
-                ))}
-              </select>
-              <select aria-label="Default Vendor" name="defaultVendorId" className={input}>
-                <option value="">Default vendor (JW)…</option>
-                {jobWorkers.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.name}
-                  </option>
-                ))}
-              </select>
-              <input aria-label="JW lead days" name="jwLeadDays" type="number" min="1" placeholder="JW lead days" className={`${input} w-28`} />
+              <Field label="Part">
+                <select name="partId" required className={input}>
+                  <option value="">Add routing step to…</option>
+                  {parts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.partNo}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Seq">
+                <input name="opSeq" type="number" min="1" placeholder="Seq" required className={`${input} w-20`} />
+              </Field>
+              <Field label="Operation (e.g. Coiling)">
+                <input name="opName" placeholder="Operation (e.g. Coiling)" required className={input} />
+              </Field>
+              <Field label="Op Type">
+                <select name="opType" className={input} defaultValue="IN_HOUSE">
+                  <option value="IN_HOUSE">In-house</option>
+                  <option value="JOB_WORK">Job work</option>
+                </select>
+              </Field>
+              <Field label="Item">
+                <select name="itemId" className={input}>
+                  <option value="">Wire item (step 1)…</option>
+                  {items.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.itemCode}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Default Vendor">
+                <select name="defaultVendorId" className={input}>
+                  <option value="">Default vendor (JW)…</option>
+                  {jobWorkers.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="JW lead days">
+                <input name="jwLeadDays" type="number" min="1" placeholder="JW lead days" className={`${input} w-28`} />
+              </Field>
               <button type="submit" className={btn}>
                 Add step
               </button>
@@ -190,9 +221,13 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
             ))}
           </ul>
           {canManage && (
-            <form action={createSupplierAction} className="mt-3 flex gap-2 flex-wrap">
-              <input aria-label="Supplier name" name="name" placeholder="Supplier name" required className={input} />
-              <input aria-label="GSTIN" name="gstin" placeholder="GSTIN" className={input} />
+            <form action={createSupplierAction} className="mt-3 flex gap-2 flex-wrap items-end">
+              <Field label="Supplier name">
+                <input name="name" placeholder="Supplier name" required className={input} />
+              </Field>
+              <Field label="GSTIN">
+                <input name="gstin" placeholder="GSTIN" className={input} />
+              </Field>
               <button type="submit" className={btn}>
                 Add
               </button>
@@ -208,11 +243,19 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
             ))}
           </ul>
           {canManage && (
-            <form action={createJobWorkerAction} className="mt-3 flex gap-2 flex-wrap">
-              <input aria-label="Job worker name" name="name" placeholder="Job worker name" required className={input} />
-              <input aria-label="Address" name="address" placeholder="Address" className={input} />
-              <input aria-label="GSTIN" name="gstin" placeholder="GSTIN" className={input} />
-              <input aria-label="Maximum return days" name="maxReturnDays" type="number" min="1" max="365" defaultValue={10} className={`${input} w-24`} title="Maximum return days" />
+            <form action={createJobWorkerAction} className="mt-3 flex gap-2 flex-wrap items-end">
+              <Field label="Job worker name">
+                <input name="name" placeholder="Job worker name" required className={input} />
+              </Field>
+              <Field label="Address">
+                <input name="address" placeholder="Address" className={input} />
+              </Field>
+              <Field label="GSTIN">
+                <input name="gstin" placeholder="GSTIN" className={input} />
+              </Field>
+              <Field label="Maximum return days">
+                <input name="maxReturnDays" type="number" min="1" max="365" defaultValue={10} className={`${input} w-24`} title="Maximum return days" />
+              </Field>
               <button type="submit" className={btn}>
                 Add
               </button>
@@ -226,9 +269,13 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
             ))}
           </ul>
           {canManage && (
-            <form action={createCustomerAction} className="mt-3 flex gap-2 flex-wrap">
-              <input aria-label="Customer name" name="name" placeholder="Customer name" required className={input} />
-              <input aria-label="GSTIN" name="gstin" placeholder="GSTIN" className={input} />
+            <form action={createCustomerAction} className="mt-3 flex gap-2 flex-wrap items-end">
+              <Field label="Customer name">
+                <input name="name" placeholder="Customer name" required className={input} />
+              </Field>
+              <Field label="GSTIN">
+                <input name="gstin" placeholder="GSTIN" className={input} />
+              </Field>
               <button type="submit" className={btn}>
                 Add
               </button>
@@ -259,24 +306,32 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
         </Table>
         {canManage && (
           <form action={createPoAction} className="mt-3 flex gap-2 flex-wrap items-end">
-            <input aria-label="PO no. (re-use to add a line)" name="poNo" placeholder="PO no. (re-use to add a line)" required className={input} />
-            <select aria-label="Supplier" name="supplierId" required className={input}>
-              <option value="">Supplier…</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <select aria-label="Item" name="itemId" required className={input}>
-              <option value="">Wire item…</option>
-              {items.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.itemCode}
-                </option>
-              ))}
-            </select>
-            <input aria-label="Ordered kg" name="orderedKg" type="number" step="0.01" min="0.01" placeholder="Ordered kg" required className={input} />
+            <Field label="PO no. (re-use to add a line)">
+              <input name="poNo" placeholder="PO no. (re-use to add a line)" required className={input} />
+            </Field>
+            <Field label="Supplier">
+              <select name="supplierId" required className={input}>
+                <option value="">Supplier…</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Item">
+              <select name="itemId" required className={input}>
+                <option value="">Wire item…</option>
+                {items.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.itemCode}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Ordered kg">
+              <input name="orderedKg" type="number" step="0.01" min="0.01" placeholder="Ordered kg" required className={input} />
+            </Field>
             <button type="submit" className={btn}>
               Add PO / line
             </button>
@@ -298,16 +353,22 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
         </Table>
         {canManage && (
           <form action={createScheduleAction} className="mt-3 flex gap-2 flex-wrap items-end">
-            <select aria-label="Part" name="partId" required className={input}>
-              <option value="">Part…</option>
-              {parts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.partNo} — {p.customer.name}
-                </option>
-              ))}
-            </select>
-            <input aria-label="Due Date" name="dueDate" type="date" required className={input} />
-            <input aria-label="Qty (nos)" name="qtyNos" type="number" min="1" placeholder="Qty (nos)" required className={input} />
+            <Field label="Part">
+              <select name="partId" required className={input}>
+                <option value="">Part…</option>
+                {parts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.partNo} — {p.customer.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Due Date">
+              <input name="dueDate" type="date" required className={input} />
+            </Field>
+            <Field label="Qty (nos)">
+              <input name="qtyNos" type="number" min="1" placeholder="Qty (nos)" required className={input} />
+            </Field>
             <button type="submit" className={btn}>
               Add schedule line
             </button>
@@ -326,17 +387,23 @@ export default async function MastersPage(props: { searchParams: Promise<{ ok?: 
           ))}
         </Table>
         {canManage && (
-          <form action={createReasonCodeAction} className="mt-3 flex gap-2 flex-wrap">
-            <input aria-label="Code" name="code" placeholder="Code" required className={input} />
-            <select aria-label="Stage" name="stage" required className={input}>
-              <option value="">Stage…</option>
-              {["IQC", "WIP", "JW", "FQI", "Customer", "Adjustment"].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <input aria-label="Description" name="description" placeholder="Description" required className={input} />
+          <form action={createReasonCodeAction} className="mt-3 flex gap-2 flex-wrap items-end">
+            <Field label="Code">
+              <input name="code" placeholder="Code" required className={input} />
+            </Field>
+            <Field label="Stage">
+              <select name="stage" required className={input}>
+                <option value="">Stage…</option>
+                {["IQC", "WIP", "JW", "FQI", "Customer", "Adjustment", "Return"].map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Description">
+              <input name="description" placeholder="Description" required className={input} />
+            </Field>
             <button type="submit" className={btn}>
               Add reason code
             </button>
@@ -353,17 +420,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="font-medium mb-3">{title}</h2>
       {children}
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block text-xs">
-      <span className="block mb-1" style={{ color: "var(--muted)" }}>
-        {label}
-      </span>
-      {children}
-    </label>
   );
 }
 

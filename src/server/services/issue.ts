@@ -211,10 +211,23 @@ export async function createIssue(params: {
   }, { isolationLevel: "Serializable" });
 }
 
-/** T6 — Return unused wire from floor to the SAME bundle, restoring kg & original inward date. */
-export async function returnToStores(params: { bundleId: string; lotId: string; kg: number; userId: string }) {
+/**
+ * T6 — Return unused wire from floor to the SAME bundle, restoring kg & original inward date.
+ * Why it came back is mandatory: a reason code (stage "Return") plus optional remarks, kept on the ledger row.
+ */
+export async function returnToStores(params: {
+  bundleId: string;
+  lotId: string;
+  kg: number;
+  reasonCodeId: string;
+  remarks?: string;
+  userId: string;
+}) {
   if (params.kg <= 0) throw new ValidationError("Return quantity must be positive.");
+  if (!params.reasonCodeId) throw new ValidationError("Select why the wire is being returned.");
   return prisma.$transaction(async (tx) => {
+    const reason = await tx.reasonCode.findUnique({ where: { id: params.reasonCodeId } });
+    if (!reason || !reason.active) throw new ValidationError("Select a valid return reason.");
     const bundle = await tx.bundle.findUniqueOrThrow({ where: { id: params.bundleId } });
     if (bundle.status !== "AVAILABLE" && bundle.status !== "CONSUMED") {
       throw new ValidationError("Only wire from an Available/consumed bundle can be returned to stores.");
@@ -256,6 +269,7 @@ export async function returnToStores(params: { bundleId: string; lotId: string; 
       qty: params.kg,
       uom: "kg",
       userId: params.userId,
+      reason: `${reason.code}: ${reason.description}${params.remarks?.trim() ? ` — ${params.remarks.trim()}` : ""} (lot ${lot.lotNo})`,
     });
     // A lot with no wire left is empty; and the MRN may need (re)issuing.
     const remaining = await tx.lotBundleLink.aggregate({ _sum: { kgConsumed: true }, where: { lotId: lot.id } });

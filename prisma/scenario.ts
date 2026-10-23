@@ -6,12 +6,13 @@
  *   DATABASE_URL=file:./scenario.db npx prisma db push --force-reset && npm run db:seed && npm run db:scenario
  * It writes data, so do not point it at a database you care about.
  */
+import "./scratch-guard";
 import { prisma } from "../src/lib/prisma";
 import { createGrn } from "../src/server/services/grn";
 import { enterIqcResult, approveIqc } from "../src/server/services/iqc";
 import { createMrn } from "../src/server/services/mrn";
 import { createIssue, returnToStores } from "../src/server/services/issue";
-import { recordOperationEntry } from "../src/server/services/production";
+import { operationProgress, recordOperationEntry } from "../src/server/services/production";
 import {
   createJwOutChallan,
   createJwInReceipt,
@@ -22,6 +23,7 @@ import { approveFinalInspection } from "../src/server/services/finalInspection";
 import { createDispatch, createCustomerReturn } from "../src/server/services/dispatch";
 import { disposeRejection } from "../src/server/services/rejection";
 import { adjustBundleStock, reverseTransaction } from "../src/server/services/adjustment";
+import { traceChain } from "../src/server/services/traceability";
 
 let passed = 0;
 const failures: string[] = [];
@@ -112,10 +114,14 @@ async function main() {
 
   // ---------------- 4.5: return to stores ----------------
   console.log("\n[4.5] Return to stores");
-  await rejects("cannot return more than the lot drew from that bundle", "Cannot return", () =>
-    returnToStores({ bundleId: b03!.id, lotId: lot.id, kg: 300, userId: user.id }),
+  const rtnReason = (await prisma.reasonCode.findUniqueOrThrow({ where: { code: "RTN-EXCESS" } })).id;
+  await rejects("return needs a reason", "why the wire", () =>
+    returnToStores({ bundleId: b03!.id, lotId: lot.id, kg: 10, reasonCodeId: "", userId: user.id }),
   );
-  await returnToStores({ bundleId: b03!.id, lotId: lot.id, kg: 50, userId: user.id });
+  await rejects("cannot return more than the lot drew from that bundle", "Cannot return", () =>
+    returnToStores({ bundleId: b03!.id, lotId: lot.id, kg: 300, reasonCodeId: rtnReason, userId: user.id }),
+  );
+  await returnToStores({ bundleId: b03!.id, lotId: lot.id, kg: 50, reasonCodeId: rtnReason, remarks: "plan cut", userId: user.id });
   const b03b = await prisma.bundle.findUniqueOrThrow({ where: { id: b03!.id } });
   check("returned wire restores the SAME bundle (300 kg) with original inward date", Number(b03b.balanceKg) === 300 && b03b.inwardDate.getTime() === b03!.inwardDate.getTime());
   check("MRN re-opens to Partially Issued after a return", (await prisma.mrn.findUniqueOrThrow({ where: { id: mrn.id } })).status === "PARTIALLY_ISSUED");
@@ -131,21 +137,61 @@ async function main() {
   const netWt = Number(lot1.part.netWtPerPcKg);
   const kgIn = links.reduce((s, l) => s + Number(l.kgConsumed), 0) - 50; // 850 after the return
   const maxNos = Math.floor(kgIn / netWt + 1e-6);
-  await rejects("coiling cannot make more springs than the wire allows", "exceeds what the issued wire can make", () =>
-    recordOperationEntry({ lotId: lot.id, opSeq: 1, goodNos: maxNos + 1, rejectedNos: 0, userId: user.id }),
+  const mrnNow = await prisma.mrn.findUniqueOrThrow({ where: { id: mrn.id } });
+  const p0 = await operationProgress(prisma, lot1);
+  const planned = p0.planned;
+  const share = Math.round((mrnNow.plannedQtyNos * kgIn) / Number(mrnNow.requiredKg));
+  check(
+    "coiling plan = MRN planned springs for the wire this lot holds, never above the MRN plan or the wire maximum",
+    planned === Math.min(maxNos, mrnNow.plannedQtyNos, share) && planned <= maxNos && p0.pending === planned,
+    `planned ${planned}, MRN ${mrnNow.plannedQtyNos}, share ${share}, wire max ${maxNos}`,
   );
   const reason = await prisma.reasonCode.findFirstOrThrow({ where: { stage: "WIP" } });
+  const entry = (good: number, rej: number, extra: { clientToken?: string; reasonCodeId?: string } = {}) =>
+    recordOperationEntry({ lotId: lot.id, opSeq: 1, goodNos: good, rejectedNos: rej, reasonCodeId: rej ? reason.id : undefined, userId: user.id, ...extra });
+  const entriesNow = () => prisma.operationEntry.count({ where: { lotId: lot.id, opSeq: 1 } });
+
+  await rejects("zero: an entry with 0 good and 0 rejected is refused", "cannot be saved", () => entry(0, 0));
+  await rejects("negative quantities are refused", "negative", () => entry(-5, 0));
+  await rejects("excess: more than the planned quantity is refused", `remaining quantity of ${planned} units`, () => entry(planned + 1, 0));
+  await rejects("coiling can never exceed what the wire can make", "exceeds the remaining quantity", () => entry(maxNos + 1, 0));
   await rejects("rejected quantity needs a reason code", "Reason code", () =>
     recordOperationEntry({ lotId: lot.id, opSeq: 1, goodNos: 100, rejectedNos: 5, userId: user.id }),
   );
   await rejects("operations must follow the routing sequence", "routing sequence", () =>
     recordOperationEntry({ lotId: lot.id, opSeq: 3, goodNos: 10, rejectedNos: 0, userId: user.id }),
   );
-  const goodCoil = maxNos - 20;
-  await recordOperationEntry({ lotId: lot.id, opSeq: 1, goodNos: goodCoil, rejectedNos: 15, reasonCodeId: reason.id, userId: user.id });
+  check("refused entries save nothing", (await entriesNow()) === 0);
+
+  // Partial: 40% good + 5 rejected -> saved, lot stays at coiling, pending = planned - processed.
+  const g1 = Math.floor(planned * 0.4);
+  const r1 = await entry(g1, 5, { clientToken: "scn-tok-1" });
+  let pAfter = await operationProgress(prisma, (await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id }, include: { part: true } })));
+  check("partial entry saves and the lot stays at the same operation", !r1.completed && r1.lot.currentOpSeq === 1);
+  check("pending = planned - (good + rejected)", pAfter.pending === planned - g1 - 5 && r1.pending === pAfter.pending);
+  // Repeated submission of the same form (double click): counted once.
+  const before = await entriesNow();
+  const again = await entry(g1, 5, { clientToken: "scn-tok-1" });
+  check("repeated submission of the same form is saved only once", again.duplicate && (await entriesNow()) === before);
+  // Page refresh: pending is recomputed from the saved entries, not kept in the page.
+  pAfter = await operationProgress(prisma, (await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id }, include: { part: true } })));
+  check("after a refresh the pending quantity is unchanged", pAfter.pending === planned - g1 - 5 && pAfter.entries === 1);
+  // Excess against the remainder: blocked with the remaining quantity in the message, nothing written.
+  const remaining = pAfter.pending;
+  const ledgerBefore = await prisma.stockLedger.count();
+  await rejects("excess over the remainder is blocked", `remaining quantity of ${remaining} units`, () => entry(remaining, 1));
+  check("...and writes no entry, ledger row or rejection", (await entriesNow()) === before && (await prisma.stockLedger.count()) === ledgerBefore);
+  // Concurrent saves of the full remainder: at most one may succeed, total never exceeds the plan.
+  const g2 = remaining - 10;
+  const settled = await Promise.allSettled([entry(g2, 10, { clientToken: "scn-c1" }), entry(g2, 10, { clientToken: "scn-c2" })]);
+  const okCount = settled.filter((s) => s.status === "fulfilled").length;
+  const all = await prisma.operationEntry.findMany({ where: { lotId: lot.id, opSeq: 1 } });
+  const processedNow = all.reduce((s, e) => s + e.goodNos + e.rejectedNos, 0);
+  check("concurrent saves: exactly one succeeds and the total equals the plan", okCount === 1 && processedNow === planned, `${okCount} ok, processed ${processedNow}`);
+  const goodCoil = g1 + g2;
   const l1 = await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } });
-  check("lot moves to op 2 with the good quantity", l1.currentOpSeq === 2 && l1.qtyNos === goodCoil);
-  check("in-process rejection is logged as Rejected – WIP", (await prisma.rejection.count({ where: { stage: "WIP", refId: lot.id } })) === 1);
+  check("exact: when the plan is reached the lot moves to op 2 with the total good quantity", l1.currentOpSeq === 2 && l1.qtyNos === goodCoil);
+  check("in-process rejections are logged as Rejected – WIP (one per entry with rejects)", (await prisma.rejection.count({ where: { stage: "WIP", refId: lot.id } })) === 2);
   await rejects("an in-house screen cannot process a Job Work op", "Job Work", () =>
     recordOperationEntry({ lotId: lot.id, opSeq: 2, goodNos: 1, rejectedNos: 0, userId: user.id }),
   );
@@ -193,8 +239,21 @@ async function main() {
   await createJwInReceipt({ challanId: challan.id, lines: [{ challanLineId: line.id, receivedNos: 100, rejectedNos: 3, shortNos: 0, reasonCodeId: jwReason.id }], userId: user.id });
   const mid = await prisma.jwOutChallan.findUniqueOrThrow({ where: { id: challan.id } });
   check("partial receipt keeps the challan open (Partially Received)", mid.status === "PARTIALLY_RECEIVED");
-  check("partial receipt keeps the lot at the vendor", (await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } })).status === "AT_JOB_WORK");
+  const parentAfter1 = await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } });
+  check("partial receipt keeps the rest of the lot at the vendor", parentAfter1.status === "AT_JOB_WORK" && parentAfter1.qtyNos === goodCoil - 103);
   check("vendor-rejected quantity is logged as Rejected – WIP (JW return)", (await prisma.rejection.count({ where: { stage: "JW_RETURN", refId: lot.id } })) === 1);
+  // Process flow "JW receipt + QC: partial returns allowed": the 100 returned pieces go to QC now, as their own lot.
+  const splitA = await prisma.productionLot.findFirstOrThrow({ where: { parentLotId: lot.id }, include: { bundleLinks: true } });
+  check(
+    "partial return: returned pieces become their own lot in JW Return QC (same part, MRN, bundles, start date)",
+    splitA.status === "JW_RETURN_QC" && splitA.qtyNos === 100 && splitA.partId === lot1.partId && splitA.mrnId === mrn.id &&
+      splitA.bundleLinks.length === links.length && splitA.startDate.getTime() === parentAfter1.startDate.getTime(),
+  );
+  await jwReturnQcDecision({ lotId: splitA.id, acceptedNos: 100, rejectedNos: 0, userId: user.id });
+  const splitAq = await prisma.productionLot.findUniqueOrThrow({ where: { id: splitA.id } });
+  check("...and after QC it moves on to the next operation while the rest is still at the vendor", splitAq.status === "IN_HOUSE" && splitAq.currentOpSeq === 3 && splitAq.qtyNos === 100);
+  const traceA = await traceChain(splitA.lotNo);
+  check("a split lot traces back to the JW challan it was sent on", !!traceA?.jwChallans.some((c) => c.challanNo === challan.challanNo));
   const rest = goodCoil - 103;
   // Admin closes with shortage: the 10 still outstanding is written off as short.
   await rejects("Floor reason is mandatory to close with shortage", "Reason", () =>
@@ -204,36 +263,40 @@ async function main() {
   await closeChallanWithShortage({ challanId: challan.id, reason: "10 pcs lost at vendor", adminId: admin.id });
   const closed = await prisma.jwOutChallan.findUniqueOrThrow({ where: { id: challan.id }, include: { lines: true } });
   check("challan closes with the shortage recorded (sent = received + rejected + short)", closed.status === "CLOSED" && closed.lines[0]!.shortNos === 10 && closed.lines[0]!.receivedNos + closed.lines[0]!.rejectedNos + closed.lines[0]!.shortNos === goodCoil);
-  const recv = goodCoil - 3 - 10;
-  const lq = await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } });
-  check("lot moves to JW Return QC with the good quantity received", lq.status === "JW_RETURN_QC" && lq.qtyNos === recv, `status ${lq.status} qty ${lq.qtyNos} expected ${recv}`);
-  await rejects("QC must decide the whole received quantity", "must equal", () =>
-    jwReturnQcDecision({ lotId: lot.id, acceptedNos: recv - 5, rejectedNos: 0, userId: user.id }),
+  // The second partial return also went to QC as its own lot; the parent, emptied, closes.
+  const splitB = await prisma.productionLot.findFirstOrThrow({ where: { parentLotId: lot.id, id: { not: splitA.id } } });
+  const recv = rest - 10;
+  check("second partial return is its own lot in JW Return QC", splitB.status === "JW_RETURN_QC" && splitB.qtyNos === recv, `status ${splitB.status} qty ${splitB.qtyNos} expected ${recv}`);
+  check("the parent lot closes once every piece is back, short or rejected", (await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } })).status === "CLOSED");
+  // From here on the main flow follows the second returned lot.
+  const wipId = splitB.id;
+  await rejects("QC cannot inspect more than was received", "exceeds", () =>
+    jwReturnQcDecision({ lotId: wipId, acceptedNos: recv + 1, rejectedNos: 0, userId: user.id }),
   );
-  await jwReturnQcDecision({ lotId: lot.id, acceptedNos: recv - 4, rejectedNos: 4, reasonCodeId: jwReason.id, userId: user.id });
-  let cur = await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } });
+  await jwReturnQcDecision({ lotId: wipId, acceptedNos: recv - 4, rejectedNos: 4, reasonCodeId: jwReason.id, userId: user.id });
+  let cur = await prisma.productionLot.findUniqueOrThrow({ where: { id: wipId } });
   check("QC accept returns the lot to in-house at the next operation", cur.status === "IN_HOUSE" && cur.currentOpSeq === 3 && cur.qtyNos === recv - 4);
 
   // remaining routing: in-house op 3 and job-work op 4 (generic loop for any routing)
   console.log("\n[4.6/4.7] Remaining routing");
   for (let guard = 0; guard < 10; guard++) {
-    cur = await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } });
+    cur = await prisma.productionLot.findUniqueOrThrow({ where: { id: wipId } });
     const op = ops.find((o) => o.opSeq === cur.currentOpSeq);
     if (!op) break;
     if (op.opType === "IN_HOUSE") {
-      await rejects(`op ${op.opSeq}: good + rejected above available is blocked`, "exceeds quantity available", () =>
-        recordOperationEntry({ lotId: lot.id, opSeq: op.opSeq, goodNos: cur.qtyNos, rejectedNos: 1, reasonCodeId: reason.id, userId: user.id }),
+      await rejects(`op ${op.opSeq}: good + rejected above available is blocked`, "exceeds the remaining quantity", () =>
+        recordOperationEntry({ lotId: wipId, opSeq: op.opSeq, goodNos: cur.qtyNos, rejectedNos: 1, reasonCodeId: reason.id, userId: user.id }),
       );
-      await recordOperationEntry({ lotId: lot.id, opSeq: op.opSeq, goodNos: cur.qtyNos - 2, rejectedNos: 2, reasonCodeId: reason.id, userId: user.id });
+      await recordOperationEntry({ lotId: wipId, opSeq: op.opSeq, goodNos: cur.qtyNos - 2, rejectedNos: 2, reasonCodeId: reason.id, userId: user.id });
     } else {
       const v = await prisma.jobWorker.findUniqueOrThrow({ where: { id: op.defaultVendorId! } });
-      const ch = await createJwOutChallan({ vendorId: v.id, lines: [{ lotId: lot.id, qtyNos: cur.qtyNos, qtyKg: 50 }], userId: user.id });
+      const ch = await createJwOutChallan({ vendorId: v.id, lines: [{ lotId: wipId, qtyNos: cur.qtyNos, qtyKg: 50 }], userId: user.id });
       const ln = (await prisma.jwChallanLine.findFirstOrThrow({ where: { challanId: ch.id } }));
       await createJwInReceipt({ challanId: ch.id, lines: [{ challanLineId: ln.id, receivedNos: cur.qtyNos, rejectedNos: 0, shortNos: 0 }], userId: user.id });
-      await jwReturnQcDecision({ lotId: lot.id, acceptedNos: cur.qtyNos, rejectedNos: 0, userId: user.id });
+      await jwReturnQcDecision({ lotId: wipId, acceptedNos: cur.qtyNos, rejectedNos: 0, userId: user.id });
     }
   }
-  cur = await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } });
+  cur = await prisma.productionLot.findUniqueOrThrow({ where: { id: wipId } });
   check("after the last op the lot is flagged complete (ready for final inspection)", cur.currentOpSeq > Math.max(...ops.map((o) => o.opSeq)) && cur.status === "IN_HOUSE");
 
   // ---------------- 4.8: final inspection ----------------
@@ -247,12 +310,12 @@ async function main() {
     approveFinalInspection({ lotId: early.id, acceptedNos: 50, rejectedNos: 0, approverId: admin.id }),
   );
   await rejects("accepted + rejected must equal the whole lot", "must equal the lot quantity", () =>
-    approveFinalInspection({ lotId: lot.id, acceptedNos: cur.qtyNos - 5, rejectedNos: 0, approverId: admin.id }),
+    approveFinalInspection({ lotId: wipId, acceptedNos: cur.qtyNos - 5, rejectedNos: 0, approverId: admin.id }),
   );
-  const fg = await approveFinalInspection({ lotId: lot.id, acceptedNos: cur.qtyNos - 5, rejectedNos: 5, reasonCodeId: fqiReason.id, approverId: admin.id });
+  const fg = await approveFinalInspection({ lotId: wipId, acceptedNos: cur.qtyNos - 5, rejectedNos: 5, reasonCodeId: fqiReason.id, approverId: admin.id });
   check("FG lot created with the accepted quantity, dated at approval", !!fg && fg.qtyNos === cur.qtyNos - 5 && fg.balanceNos === fg.qtyNos);
-  check("production lot closes after inspection", (await prisma.productionLot.findUniqueOrThrow({ where: { id: lot.id } })).status === "CLOSED");
-  const fqiRej = await prisma.rejection.findFirstOrThrow({ where: { stage: "FQI", refId: lot.id } });
+  check("production lot closes after inspection", (await prisma.productionLot.findUniqueOrThrow({ where: { id: wipId } })).status === "CLOSED");
+  const fqiRej = await prisma.rejection.findFirstOrThrow({ where: { stage: "FQI", refId: wipId } });
 
   // ---------------- 4.9: dispatch ----------------
   console.log("\n[4.9] Dispatch");

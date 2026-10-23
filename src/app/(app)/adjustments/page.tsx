@@ -1,3 +1,4 @@
+import { Field } from "@/components/Field";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/server/auth/session";
 import { can } from "@/server/policy";
@@ -26,16 +27,22 @@ export default async function AdjustmentsPage(props: { searchParams: Promise<{ o
         negative stock.
       </p>
       <form action={adjustStockAction} className="card p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-        <select aria-label="Bundle" name="bundleId" required className="md:col-span-2 rounded border px-2 py-1.5 bg-transparent">
-          <option value="">Bundle...</option>
-          {bundles.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.bundleNo} ({b.item.grade} {Number(b.item.diameterMm)}mm, balance {formatKg(b.balanceKg)} kg)
-            </option>
-          ))}
-        </select>
-        <input aria-label="+/- kg" name="deltaKg" type="number" step="0.01" required placeholder="+/- kg" className="rounded border px-2 py-1.5 bg-transparent" />
-        <input aria-label="Reason (mandatory)" name="reason" required placeholder="Reason (mandatory)" className="rounded border px-2 py-1.5 bg-transparent" />
+        <Field label="Bundle" className="md:col-span-2">
+          <select name="bundleId" required className="w-full rounded border px-2 py-1.5 bg-transparent">
+            <option value="">Bundle...</option>
+            {bundles.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.bundleNo} ({b.item.grade} {Number(b.item.diameterMm)}mm, balance {formatKg(b.balanceKg)} kg)
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="+/- kg">
+          <input name="deltaKg" type="number" step="0.01" required placeholder="+/- kg" className="w-full rounded border px-2 py-1.5 bg-transparent" />
+        </Field>
+        <Field label="Reason (mandatory)">
+          <input name="reason" required placeholder="Reason (mandatory)" className="w-full rounded border px-2 py-1.5 bg-transparent" />
+        </Field>
         <button type="submit" className="btn-primary px-4 py-2 text-sm font-medium min-h-11">
           Save adjustment
         </button>

@@ -1,7 +1,11 @@
-/** `npm run db:receipt-check` — checks PO creation and GRN receipt upload rules. Writes data; use a scratch DB. */
+/**
+ * `npm run db:receipt-check` — checks PO creation and GRN receipt upload rules.
+ * Writes data: run it on a scratch DB only, e.g. (PowerShell) $env:DATABASE_URL="file:./scenario.db".
+ */
+import "./scratch-guard";
 import { prisma } from "../src/lib/prisma";
 import { createPo } from "../src/server/services/po";
-import { createGrn } from "../src/server/services/grn";
+import { createGrn, localDateString } from "../src/server/services/grn";
 import { saveReceipt, readReceipt, saveDocument } from "../src/server/services/uploads";
 
 let failed = 0;
@@ -38,6 +42,7 @@ async function main() {
     lines: [{ itemId: items[0]!.id, orderedKg: 1000 }, { itemId: items[1]!.id, orderedKg: 500 }],
   });
   check("multi-line PO is created", po.lines.length === 2);
+  check("a new PO is always dated today (no back/post-dating)", localDateString(po.poDate) === localDateString(new Date()));
   await throwsWith("duplicate PO no. is refused", "already exists", () =>
     createPo({ poNo: "PO-TEST-001", supplierId: supplier.id, lines: [{ itemId: items[0]!.id, orderedKg: 5 }] }),
   );
@@ -76,13 +81,27 @@ async function main() {
   await throwsWith("a text file renamed .pdf is refused", "does not match", () =>
     saveReceipt(new File([Buffer.from("just text")], "evil.pdf", { type: "application/pdf" })),
   );
-  await throwsWith("an executable is refused", "PDF, PNG", () =>
+  await throwsWith("an executable is refused", "PDF, JPG, JPEG or PNG", () =>
     saveReceipt(new File([Buffer.from("MZ")], "a.exe", { type: "application/x-msdownload" })),
   );
+  await throwsWith("a WEBP image is refused (only PDF, JPG, JPEG, PNG)", "PDF, JPG, JPEG or PNG", () =>
+    saveReceipt(new File([Buffer.from("RIFF0000WEBPVP8 ")], "scan.webp", { type: "image/webp" })),
+  );
+  const jpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
+  const jpg = await saveReceipt(new File([jpegBytes], "challan.jpeg", { type: "" }));
+  check("a .jpeg file is accepted even when the browser sends no type", !!jpg && jpg.receiptMime === "image/jpeg" && jpg.receiptPath.endsWith(".jpg"));
+  const png = await saveReceipt(new File([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a])], "invoice.png", { type: "image/png" }));
+  check("a PNG is accepted", !!png && png.receiptMime === "image/png");
   await throwsWith("a file over 5 MB is refused", "too large", () =>
     saveReceipt(new File([Buffer.alloc(5 * 1024 * 1024 + 1)], "big.pdf", { type: "application/pdf" })),
   );
   await throwsWith("path traversal is refused on read", "Invalid", () => readReceipt("../.env"));
+
+  console.log("\nInvoice date");
+  const tomorrow = new Date(`${localDateString(new Date(Date.now() + 86400000))}T00:00:00.000Z`);
+  await throwsWith("a post-dated (future) invoice date is refused", "cannot be in the future", () =>
+    createGrn({ poId: po.id, invoiceNo: "FUT-1", invoiceDate: tomorrow, bundles: [{ itemId: items[0]!.id, heatNo: "H-F", weightKg: 10 }], userId: user.id }),
+  );
 
   console.log("\nGRN with receipt");
   const grn = await createGrn({

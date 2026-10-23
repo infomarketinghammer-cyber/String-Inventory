@@ -1,3 +1,4 @@
+import { Field } from "@/components/Field";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/server/auth/session";
 import { Banner } from "@/components/Banner";
@@ -100,17 +101,25 @@ export default async function DispatchPage(props: { searchParams: Promise<{ ok?:
           Received against the original Dispatch Note and FG Lot; the material goes to Rejected – FG for disposal.
         </p>
         <form action={createCustomerReturnAction} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
-          <input aria-label="Dispatch No. (e.g. DN-2627-0001)" name="dispatchNo" required placeholder="Dispatch No. (e.g. DN-2627-0001)" className="rounded border px-2 py-1.5 bg-transparent text-sm" />
-          <input aria-label="FG Lot No." name="fgLotNo" required placeholder="FG Lot No." className="rounded border px-2 py-1.5 bg-transparent text-sm" />
-          <input aria-label="Qty (nos)" name="qtyNos" type="number" min="1" required placeholder="Qty (nos)" className="rounded border px-2 py-1.5 bg-transparent text-sm" />
-          <select aria-label="Reason Code" name="reasonCodeId" required className="rounded border px-2 py-1.5 bg-transparent text-sm">
-            <option value="">Reason...</option>
-            {returnReasons.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.code}
-              </option>
-            ))}
-          </select>
+          <Field label="Dispatch No. (e.g. DN-2627-0001)">
+            <input name="dispatchNo" required placeholder="Dispatch No. (e.g. DN-2627-0001)" className="w-full rounded border px-2 py-1.5 bg-transparent text-sm" />
+          </Field>
+          <Field label="FG Lot No.">
+            <input name="fgLotNo" required placeholder="FG Lot No." className="w-full rounded border px-2 py-1.5 bg-transparent text-sm" />
+          </Field>
+          <Field label="Qty (nos)">
+            <input name="qtyNos" type="number" min="1" required placeholder="Qty (nos)" className="w-full rounded border px-2 py-1.5 bg-transparent text-sm" />
+          </Field>
+          <Field label="Reason Code">
+            <select name="reasonCodeId" required className="w-full rounded border px-2 py-1.5 bg-transparent text-sm">
+              <option value="">Reason...</option>
+              {returnReasons.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.code}
+                </option>
+              ))}
+            </select>
+          </Field>
           <button type="submit" className="text-sm btn-primary px-3 py-1.5 min-h-11">
             Record return
           </button>

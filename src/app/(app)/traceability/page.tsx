@@ -1,6 +1,7 @@
 import { requireUser } from "@/server/auth/session";
 import { can } from "@/server/policy";
 import { Forbidden } from "@/components/Forbidden";
+import { Field } from "@/components/Field";
 import { traceChain } from "@/server/services/traceability";
 import { formatDate } from "@/lib/format";
 
@@ -19,13 +20,15 @@ export default async function TraceabilityPage(props: { searchParams: Promise<{ 
         chain: PO → GRN → Bundle (Heat No.) → Issue → Production Lot (Part No.) → JW Challans → FG Lot → Dispatch →
         Customer.
       </p>
-      <form className="card p-4 flex gap-2">
-        <input aria-label="e.g. RM-2609-0031, PL-2610-0012, FG-2608-0001, DN-2627-0001"
-          name="q"
-          defaultValue={q}
-          placeholder="e.g. RM-2609-0031, PL-2610-0012, FG-2608-0001, DN-2627-0001"
-          className="flex-1 rounded border px-3 py-2 bg-transparent"
-        />
+      <form className="card p-4 flex gap-2 items-end">
+        <Field label="Bundle / Lot / FG Lot / Dispatch No." className="flex-1">
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="e.g. RM-2609-0031, PL-2610-0012, FG-2608-0001, DN-2627-0001"
+            className="w-full rounded border px-3 py-2 bg-transparent"
+          />
+        </Field>
         <button type="submit" className="btn-primary px-4 py-2 text-sm font-medium min-h-11">
           Trace
         </button>

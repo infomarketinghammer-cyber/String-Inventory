@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "./config";
-import { can, type Action, type PolicyUser } from "@/server/policy";
+import { can, PolicyError, type Action, type PolicyUser } from "@/server/policy";
 
 /** Every page must call this; unauthenticated -> redirect to /login (mandatory rule). */
 export async function requireUser(): Promise<PolicyUser & { name: string; email: string }> {
@@ -18,7 +18,9 @@ export async function requireUser(): Promise<PolicyUser & { name: string; email:
 export async function requireAction(action: Action) {
   const user = await requireUser();
   if (!can(user, action)) {
-    throw new Error(`403 Forbidden: role ${user.role} may not perform "${action}"`);
+    // Details stay in the server log; the screen shows a plain "no permission" message.
+    console.warn(`403 Forbidden: user ${user.id} (${user.role}) may not perform "${action}"`);
+    throw new PolicyError(`Forbidden: ${action}`);
   }
   return user;
 }

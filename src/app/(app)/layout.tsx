@@ -22,9 +22,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // App shell: the window itself never scrolls. The sidebar stays put and the main area scrolls on its own.
   return (
-    <div className="app-shell flex h-screen overflow-hidden">
+    <div className="app-shell flex overflow-hidden">
       <Sidebar role={user.role} />
-      <div className="app-main flex-1 flex flex-col min-w-0 h-screen">
+      <div className="app-main flex-1 flex flex-col min-w-0 h-full">
         <header
           className="no-print flex h-16 shrink-0 items-center justify-between gap-4 border-b px-6"
           style={{ borderColor: "var(--border)", background: "var(--card)" }}

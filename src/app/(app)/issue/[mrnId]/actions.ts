@@ -1,10 +1,10 @@
 "use server";
 
+import { toUserError } from "@/server/userError";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
 import { createIssue } from "@/server/services/issue";
-import { ValidationError } from "@/server/services/errors";
 import { can } from "@/server/policy";
 
 const schema = z.object({
@@ -50,8 +50,8 @@ export async function createIssueAction(formData: FormData) {
       overrideReason: parsed.data.overrideReason,
     });
     redirect(`/issue?ok=${encodeURIComponent(`Issue ${result.issue.issueNo} saved. Production Lot ${result.lot.lotNo} created.`)}`);
-  } catch (e) {
-    if (e instanceof ValidationError) redirect(`/issue/${mrnId}?err=${encodeURIComponent(e.message)}`);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    redirect(`/issue/${mrnId}?err=${encodeURIComponent(e.message)}`);
   }
 }

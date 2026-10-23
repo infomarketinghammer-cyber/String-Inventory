@@ -1,0 +1,488 @@
+<title>Spring Inventory User Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a single reading column with a sticky contents rail on wide screens; tables scroll inside their own box. */
+:root {
+  --bg: #f7f9f7;
+  --surface: #ffffff;
+  --fg: #17241c;
+  --muted: #5b6b61;
+  --line: #d9e2dc;
+  --brand: #1f8a4c;
+  --brand-deep: #0e5a33;
+  --brand-soft: #e3f2e8;
+  --accent: #1d8fc4;
+  --warn-bg: #fff6df;
+  --warn-fg: #7a5200;
+  --bad-bg: #fde8e8;
+  --bad-fg: #9b1c1c;
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101713; --surface: #16201a; --fg: #e3ebe5; --muted: #9db0a3; --line: #2a3a30;
+    --brand: #4cc27f; --brand-deep: #8fdcae; --brand-soft: #1c3326; --accent: #5bb8e6;
+    --warn-bg: #3a2f12; --warn-fg: #f3d28a; --bad-bg: #3b1a1a; --bad-fg: #f5b4b4;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101713; --surface: #16201a; --fg: #e3ebe5; --muted: #9db0a3; --line: #2a3a30;
+  --brand: #4cc27f; --brand-deep: #8fdcae; --brand-soft: #1c3326; --accent: #5bb8e6;
+  --warn-bg: #3a2f12; --warn-fg: #f3d28a; --bad-bg: #3b1a1a; --bad-fg: #f5b4b4;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 32px 64px; display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; } nav.toc { position: static !important; } }
+nav.toc { position: sticky; top: 24px; align-self: start; font-size: 14px; }
+nav.toc .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: t; }
+nav.toc a { color: var(--fg); text-decoration: none; display: block; padding: 3px 8px; border-radius: 6px; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--brand-soft); color: var(--brand-deep); outline: none; }
+main { min-width: 0; }
+header.doc { border-bottom: 2px solid var(--brand); padding-bottom: 20px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); font-weight: 700; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; color: var(--fg); line-height: 1.25; }
+h1 { font-size: 2.3rem; margin: 6px 0 10px; }
+h2 { font-size: 1.6rem; margin: 48px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.2rem; margin: 28px 0 8px; }
+p, li { max-width: 72ch; }
+.lead { font-size: 1.1rem; color: var(--muted); }
+code, .mono { font-family: var(--font-mono); font-size: .86em; background: var(--brand-soft); color: var(--brand-deep); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.path { font-weight: 600; color: var(--brand-deep); }
+.table-wrap { overflow-x: auto; margin: 12px 0 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--bg); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 4px 20px 16px; margin: 18px 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--muted); margin: -2px 0 6px; }
+.meta b { color: var(--fg); font-weight: 600; }
+ol.steps { padding-left: 22px; }
+ol.steps li { margin: 4px 0; }
+.sys { border-left: 3px solid var(--brand); padding: 6px 14px; background: var(--brand-soft); border-radius: 0 6px 6px 0; margin: 10px 0; }
+.sys strong { color: var(--brand-deep); }
+.note { border-left: 3px solid var(--warn-fg); background: var(--warn-bg); color: var(--warn-fg); padding: 8px 14px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+.ok { background: var(--brand-soft); color: var(--brand-deep); }
+.chg { background: var(--warn-bg); color: var(--warn-fg); }
+.open { background: var(--bad-bg); color: var(--bad-fg); }
+pre.mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.grid2 > div { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+.grid2 h4 { margin: 4px 0; font-size: 15px; }
+.grid2 p { margin: 4px 0; font-size: 14.5px; color: var(--muted); }
+footer { margin-top: 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+a { color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { nav.toc a { transition: background .15s; } }
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="label">Contents</div>
+  <ol>
+    <li><a href="#about">1. What the system does</a></li>
+    <li><a href="#rules">2. Rules that never change</a></li>
+    <li><a href="#users">3. Users and sign-in</a></li>
+    <li><a href="#flow">4. The process at a glance</a></li>
+    <li><a href="#wip">5. WIP flow check</a></li>
+    <li><a href="#steps">6. Step-by-step guide</a></li>
+    <li><a href="#dashboard">7. Dashboard and reports</a></li>
+    <li><a href="#masters">8. Masters and settings</a></li>
+    <li><a href="#stock">9. Stock, locations, ledger</a></li>
+    <li><a href="#numbers">10. Document numbers</a></li>
+    <li><a href="#sop">11. SOP conformance</a></li>
+    <li><a href="#messages">12. Common messages</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="doc">
+  <div class="eyebrow">Spring Manufacturing · Inventory Module</div>
+  <h1>Spring Inventory User Guide</h1>
+  <p class="lead">How to use each screen, what the system does behind it, and how the application compares with the SOP &amp; Process Flow (v1.0, 13 Oct 2026). Written for store, production, quality and dispatch staff, and for the managers who approve their work.</p>
+</header>
+
+<section id="about">
+<h2>1. What the system does</h2>
+<p>The module follows every kilogram of wire from the supplier's truck to the customer. Wire arrives as <b>bundles</b> (raw material, counted in kg). It is issued to production, where it becomes a <b>Production Lot</b> of springs (work in progress, counted in nos). A lot moves through its routing: coiling, heat treatment, grinding, plating and so on. Some steps are done in-house and some by outside <b>job workers</b>. After final inspection the accepted springs become an <b>FG Lot</b> in FG Stores, ready to dispatch against the customer's schedule.</p>
+<p>Every screen in the left sidebar is one step of that journey. The system proposes what to do next, checks each entry, and records every stock movement in one <b>stock ledger</b>, so any number on any screen can be traced back to the document that created it.</p>
+</section>
+
+<section id="rules">
+<h2>2. Rules that never change</h2>
+<div class="grid2">
+  <div><h4>Oldest stock first (FIFO)</h4><p>Material issue, job-work send and dispatch always pick the oldest eligible bundle, lot or FG lot. A wrong scan is blocked and the screen names the one that should go first. Only an Admin can override, and must give a reason.</p></div>
+  <div><h4>No negative stock</h4><p>No bundle, lot or FG lot can go below zero. Entries above what is available are refused with the available figure in the message.</p></div>
+  <div><h4>Held stock cannot move</h4><p>Bundles in Quality Hold, anything Rejected and lots At Job Worker cannot be issued, sent or dispatched.</p></div>
+  <div><h4>Nothing is edited or deleted</h4><p>A saved transaction is permanent. Mistakes are corrected by a reversing transaction (Admin) or a stock adjustment, both with a reason, and both are kept in the history.</p></div>
+  <div><h4>Numbers come from the system</h4><p>Bundle, lot, GRN, MRN and every other document number is generated automatically, runs per financial year, and is never reused.</p></div>
+  <div><h4>Reasons are mandatory</h4><p>Every rejection, override, adjustment, scrap, return to stores and skipped job work needs a reason.</p></div>
+</div>
+</section>
+
+<section id="users">
+<h2>3. Users and sign-in</h2>
+<p>Sign in at the login page with your email and password. New users, and users whose password was reset, must choose their own password on first sign-in. After 5 wrong passwords the account is locked for 15 minutes. Use <b>Sign out</b> (top right) when you leave a shared terminal.</p>
+<p>There are two roles today. <b>Admin</b> can do everything, including approvals, masters, adjustments and all reports. <b>Floor</b> users make the day-to-day entries. The menu only shows what your role may use, and the server refuses any action your role is not allowed, even from a direct link.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Demo account</th><th>Role</th><th>Person (per SOP)</th><th>Main screens</th></tr></thead>
+<tbody>
+<tr><td><code>stores.admin@demo.local</code></td><td>Admin</td><td>Stores in-charge</td><td>Masters, POs, FIFO override, adjustments, reversals, JW shortage close, users</td></tr>
+<tr><td><code>quality.admin@demo.local</code></td><td>Admin</td><td>Quality head</td><td>IQC approval, final inspection approval, rejection disposal</td></tr>
+<tr><td><code>plant.admin@demo.local</code></td><td>Admin</td><td>Plant / production manager</td><td>MRN, over-dispatch approval, reports</td></tr>
+<tr><td><code>storekeeper@demo.local</code></td><td>Floor</td><td>Store keeper</td><td>GRN, bundle tags, material issue, return to stores, JW in receipt</td></tr>
+<tr><td><code>supervisor@demo.local</code></td><td>Floor</td><td>Production supervisor</td><td>MRN, production entry, job-work decision</td></tr>
+<tr><td><code>qc.inspector@demo.local</code></td><td>Floor</td><td>QC inspector</td><td>IQC results, JW return QC, final inspection results</td></tr>
+<tr><td><code>dispatch@demo.local</code></td><td>Floor</td><td>Dispatch clerk</td><td>JW out challan, dispatch, customer returns</td></tr>
+</tbody></table></div>
+<p>All demo accounts use the password <code>Demo@1234</code>. Before real use, create the plant's own users in <span class="path">Admin → User Management</span> and deactivate the demo accounts.</p>
+<div class="note">Because there is one Admin role, any Admin can approve any Admin step. The Quality Head is not the only one who can approve IQC, for example. Per-person screens and approvals are part of the roles and permissions work still to be done (see section 11).</div>
+</section>
+
+<section id="flow">
+<h2>4. The process at a glance</h2>
+<p>Material moves one way: raw material, then work in progress, then finished goods. Job work and rejections are side loops that rejoin or leave the main line. The diagram shows the flow exactly as the application runs it today.</p>
+<pre class="mermaid">
+flowchart TD
+  PO[Purchase order] --> GRN[GRN at stores<br/>bundles in Quality Hold]
+  GRN --> IQC{IQC passed?<br/>QC records, Admin approves}
+  IQC -- reject --> RRM[Rejected - RM<br/>return to supplier or deviation]
+  IQC -- accept --> RMS[RM Stores - Available<br/>bundle tag printed]
+  RMS --> MRN[MRN by production<br/>Part No. + kg from BOM]
+  MRN --> ISS[Issue by stores<br/>FIFO, oldest bundle first]
+  ISS --> PL[Production Lot<br/>links Part No. to Bundle Nos.]
+  PL --> NEXT[Next routing step<br/>read from BOM]
+  NEXT --> JWQ{Job work step?}
+  JWQ -- yes --> CHOICE{Send or skip?<br/>production decides}
+  CHOICE -- send --> OUT[JW Out Challan<br/>vehicle no., return date]
+  OUT --> AT[At job worker<br/>still our stock]
+  AT --> RCV[JW In Receipt<br/>partial returns allowed]
+  RCV --> RQC[JW Return QC]
+  RQC -- accepted --> LAST
+  RQC -- rejected --> RWIP
+  CHOICE -- skip, with reason --> LAST
+  JWQ -- no --> INH[In-house operation<br/>good + rejected nos]
+  INH -- rejected nos --> RWIP[Rejected - WIP<br/>rework or scrap]
+  INH --> LAST{Last operation?}
+  LAST -- no --> NEXT
+  LAST -- yes --> FQI{Final inspection OK?<br/>QC records, Admin approves}
+  FQI -- reject --> RFG[Rejected - FG<br/>rework or scrap]
+  FQI -- pass --> FG[FG Lot in FG Stores]
+  FG --> DSP[Dispatch to customer<br/>FIFO, against schedule]
+</pre>
+</section>
+
+<section id="wip">
+<h2>5. WIP flow check</h2>
+<p>This compares each box of the SOP's work-in-progress diagram with what the application does.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>SOP box</th><th>In the application</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>MRN by Production: Part No. + kg from BOM</td><td>MRN screen proposes wire grade, diameter and kg = springs × net wt × (1 + scrap %); kg editable within the Admin limit.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Issue by Stores: FIFO, oldest bundle first</td><td>Issue screen suggests bundles oldest-first and blocks a wrong scan, naming the right bundle.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Production Lot links Part No. to Bundle Nos.</td><td>Each issue creates a lot (PL-YYMM-####) linked to the MRN, Part No. and every bundle + kg.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Next routing step, read from BOM</td><td>The lot's current operation comes from the Part's routing; the Production screen shows it on each lot.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Job work step? → yes → JW out challan</td><td>At a Job Work step the lot shows <b>Send to Job Work</b>; the JW Out Challan screen lists it oldest-first.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Job work step? → (not in SOP) skip</td><td><b>Skip Job Work</b> moves the lot to the next routing step without a challan; a reason is required and logged. Added at the client's request; the SOP (validation 7) has no skip.</td><td><span class="pill chg">Client change</span></td></tr>
+<tr><td>At job worker: still our stock, tracked</td><td>Lot status At Job Worker, location = the vendor; shown on the Job Work report, dashboard and alerts (due in 3 days / overdue).</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>JW receipt + QC: partial returns allowed</td><td>One challan takes any number of return batches. Each batch goes to JW Return QC straight away as its own lot (same part, MRN, bundles and start date) and can be inspected in parts; the rest stays At Job Worker on the challan.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Back after QC: next step</td><td>QC accept moves the pieces in-house to the next routing step; QC reject sends them to Rejected – WIP.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>In-house operation: record good + rejected nos</td><td>Production screen: good and rejected nos per entry, reason required for rejects. Partial entries allowed; the lot moves on only when good + rejected reaches the planned quantity.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Rejected – WIP: rework or scrap</td><td>Rejections / Disposal: Admin chooses rework (new lot at a chosen operation) or scrap.</td><td><span class="pill ok">Follows</span></td></tr>
+<tr><td>Last operation? no → next step; yes → final inspection</td><td>After the last routing step the lot shows "ready for Final Inspection".</td><td><span class="pill ok">Follows</span></td></tr>
+</tbody></table></div>
+<div class="note">The partial-return row was fixed on 22 Oct 2026. Before that, returned pieces waited until the whole challan line was back. The two challans received partly before the fix were reconciled from their existing receipts, with no new receipt or ledger entry: JWO-2627-0003 / JWI-2627-0002 (2,500 pcs, now QC lot PL-2610-0011) and JWO-2627-0008 / JWI-2627-0007 (200 pcs, now QC lot PL-2610-0012).</div>
+</section>
+
+<section id="steps">
+<h2>6. Step-by-step guide</h2>
+<p>Each stage lists who does it, where to find it in the sidebar, the steps, and what the system does.</p>
+
+<div class="stage" id="grn">
+<h3>6.1 Receive material against a PO (GRN)</h3>
+<div class="meta"><span><b>Who:</b> Store keeper</span><span><b>Screen:</b> Receipt &amp; QC → GRN (Receipt)</span></div>
+<ol class="steps">
+  <li>Select the open PO. The screen shows each PO line with ordered, received and balance quantity.</li>
+  <li>Enter the supplier invoice no., invoice date (today or earlier, never a future date) and vehicle no.</li>
+  <li>Enter the received quantity per PO line, then each bundle: weight (kg), Heat No. and test certificate reference. Grade and diameter come from the PO line.</li>
+  <li>Optionally attach the scanned invoice or delivery challan (PDF, JPG, JPEG or PNG, up to 5 MB).</li>
+  <li>Click <b>Save GRN</b>.</li>
+</ol>
+<div class="sys"><strong>System:</strong> refuses a receipt above PO balance + tolerance % (set in Masters), and a line quantity that does not match its bundle weights. Each bundle is created in <b>Quality Hold</b> in the Incoming / QC area with inward date = GRN date (its FIFO and aging date). Ledger: T1.</div>
+<h3>Adding a PO (Admin)</h3>
+<ol class="steps">
+  <li>On the GRN screen open <b>Add new PO</b>. Store keepers do not see this.</li>
+  <li>Optionally upload the scanned PO and click <b>Read PO with AI</b>. The form is filled from the document and a yellow box lists anything to check. Correct any field, tick "I have checked the values read by AI", then <b>Confirm &amp; save PO</b>. (AI reading works only once an administrator has set it up; see section 8.)</li>
+  <li>Otherwise type the PO no., choose the supplier (or "Add new supplier") and add the wire lines with ordered kg.</li>
+</ol>
+<div class="sys"><strong>System:</strong> the PO date is always today. A PO cannot be back-dated or post-dated.</div>
+</div>
+
+<div class="stage" id="iqc">
+<h3>6.2 Incoming quality inspection (IQC) and bundle tags</h3>
+<div class="meta"><span><b>Who:</b> QC inspector records; Admin (Quality head) approves</span><span><b>Screen:</b> Receipt &amp; QC → IQC</span></div>
+<ol class="steps">
+  <li>The pending list groups bundles by GRN. Pick one bundle, or record the same result for the whole GRN.</li>
+  <li>Enter diameter, tensile, surface and certificate check, and the decision: <b>Accept</b>, <b>Reject</b> (reason required) or <b>Accept under deviation</b>.</li>
+  <li>An Admin reviews the recorded result and clicks <b>Approve</b>.</li>
+  <li>Print the bundle tag (Bundle No., grade, diameter, weight, Heat No., inward date and QR code) and fix it to the coil. Floor users can print a tag once; reprints are Admin-only.</li>
+</ol>
+<div class="sys"><strong>System:</strong> recording a result does not move stock. On approval an accepted bundle becomes <b>Available</b> in RM Stores (T2); a rejected bundle goes to <b>Rejected – RM</b> (T3) and onto the Rejections list for return to supplier or deviation. A bundle is accepted or rejected whole.</div>
+</div>
+
+<div class="stage" id="mrn">
+<h3>6.3 Material requisition (MRN)</h3>
+<div class="meta"><span><b>Who:</b> Production supervisor</span><span><b>Screen:</b> Stores &amp; Production → MRN</span></div>
+<ol class="steps">
+  <li>Choose the Part No. and enter the planned number of springs.</li>
+  <li>The system proposes the wire and required kg from the BOM. You may change the kg within the limit set in Masters (default ±10 %).</li>
+  <li>Click <b>Create MRN</b>.</li>
+</ol>
+<div class="sys"><strong>System:</strong> MRN status Open. No stock moves or is reserved. The MRN list shows the RM wire and the RM bundle numbers issued against each MRN, with search by MRN, bundle or wire code and filters by part and status.</div>
+</div>
+
+<div class="stage" id="issue">
+<h3>6.4 Issue material to production (FIFO)</h3>
+<div class="meta"><span><b>Who:</b> Store keeper</span><span><b>Screen:</b> Stores &amp; Production → Material Issue (FIFO)</span></div>
+<ol class="steps">
+  <li>Open an Open or Partially Issued MRN. The screen shows the FIFO-suggested bundles of the matching grade and diameter.</li>
+  <li>Scan or type each bundle tag and enter the kg issued from it (full or part), or use <b>Add all FIFO-suggested bundles</b>.</li>
+  <li>Click <b>Confirm &amp; save issue</b>.</li>
+</ol>
+<div class="sys"><strong>System:</strong> a bundle that is not the oldest is blocked and the message names the bundle to use first. An Admin may override with a reason, which is logged. Each bundle's balance goes down (T5); a part-used bundle keeps its inward date. A Production Lot is created and linked to every bundle and kg. The MRN becomes Partially Issued or Closed. Every issue appears in <span class="path">Reports → Issue Register</span> with the bundle balance left.</div>
+</div>
+
+<div class="stage" id="rts">
+<h3>6.5 Return unused wire to stores</h3>
+<div class="meta"><span><b>Who:</b> Store keeper</span><span><b>Screen:</b> Stores &amp; Production → Return to Stores</span></div>
+<ol class="steps">
+  <li>Find the lot and bundle the wire came from. Only lots that have not started production are listed.</li>
+  <li>Enter the return quantity (kg), choose <b>Why returned?</b> and add remarks if needed.</li>
+  <li>Click <b>Return to stores</b>. The returns history below the form shows every return with quantity and reason.</li>
+</ol>
+<div class="sys"><strong>System:</strong> the wire goes back to the same bundle with its original inward date (T6), so it keeps its FIFO place. The MRN status is recalculated.</div>
+</div>
+
+<div class="stage" id="production">
+<h3>6.6 Production and operation entry</h3>
+<div class="meta"><span><b>Who:</b> Production supervisor</span><span><b>Screen:</b> Stores &amp; Production → Production / Operations</span></div>
+<p>Each lot in the factory shows its current routing step. What you do depends on the step.</p>
+<h3>At an in-house step (coiling, grinding…)</h3>
+<ol class="steps">
+  <li>The card shows <b>Planned</b>, <b>Processed so far</b> and <b>Pending</b>. At coiling, planned is the MRN's planned springs for the wire this lot holds; the wire's maximum by weight is shown under it. At later steps, planned is the good pieces from the previous step.</li>
+  <li>Enter <b>Good</b> and <b>Rejected</b> pieces. A rejected quantity needs a rejection reason. You may enter part of the quantity now and the rest later.</li>
+  <li>Click <b>Save entry</b>. It stays disabled for 0 + 0, negative numbers, missing reasons, or a total above pending.</li>
+</ol>
+<div class="sys"><strong>System:</strong> pending = planned − (all good + all rejected) at that step. When pending reaches 0 the lot moves to the next routing step carrying the total good pieces. Rejected pieces go to <b>Rejected – WIP</b> (T12). A double click or repeated submit is saved only once, and two people saving at once can never exceed the plan.</div>
+<div class="note">If coiling makes fewer springs than planned (end scrap, losses), record the shortfall as Rejected with a reason so the step completes.</div>
+<h3>At a job-work step (heat treatment, plating…)</h3>
+<ol class="steps">
+  <li><b>Send to Job Work</b> opens the JW Out Challan screen (section 6.7).</li>
+  <li><b>Skip Job Work</b> asks for a reason, then <b>Confirm skip</b>. The lot moves to the next routing step, or to Final Inspection when the job-work step was the last one.</li>
+</ol>
+<div class="sys"><strong>System:</strong> a skip moves no stock. It is kept on the lot as a skipped operation with its reason, plus an audit record.</div>
+</div>
+
+<div class="stage" id="jw">
+<h3>6.7 Job work: send out, receive back, return QC</h3>
+<div class="meta"><span><b>Who:</b> Dispatch clerk sends; store keeper receives; QC inspector checks returns</span><span><b>Screens:</b> Job Work → JW Out Challan · JW In Receipt</span></div>
+<h3>Send out</h3>
+<ol class="steps">
+  <li>On JW Out Challan, tick the lots to send. They are listed oldest-first, with a suggested kg.</li>
+  <li>Choose the job worker, enter the <b>Vehicle No.</b> (required) and, if needed, an expected return date. It defaults to challan date + lead time and can never exceed the vendor's maximum return days.</li>
+  <li>Click <b>Create challan</b>, then <b>Print</b>, or download it as <b>Excel</b> or <b>PDF</b> from the challan list.</li>
+</ol>
+<div class="sys"><strong>System:</strong> FIFO by lot start date (Admin override with reason). The whole lot moves to <b>At Job Worker – vendor</b> (T8); it is still our stock.</div>
+<h3>Receive back: one challan, many return batches</h3>
+<p>Vendors often return material in several deliveries. Each delivery is a <b>return batch</b> recorded against the original challan; the challan is never duplicated.</p>
+<ol class="steps">
+  <li>On <span class="path">Job Work → JW In Receipt</span>, find the challan and click <b>Open challan</b>. The top shows Dispatched, Returned, Outstanding with vendor, Pending QC, QC passed and QC rejected.</li>
+  <li>Click <b>Record Partial Return</b> on the lot and enter this delivery: <b>Received good</b>, <b>Rejected by vendor</b> (reason required), <b>Short / lost</b>, the <b>receipt date</b>, and optionally the vendor's DC no. and remarks.</li>
+  <li>Click <b>Save return batch</b>. The batch gets its own number (JWI-…) and appears under <b>Return batches</b>, ready for QC at once.</li>
+  <li>Repeat for every later delivery. Earlier batches are never changed.</li>
+  <li>An Admin can close a challan with a shortage, with a reason; whatever is still with the vendor is written off as short.</li>
+</ol>
+<div class="sys"><strong>System:</strong> outstanding with vendor = dispatched − returned − rejected by vendor − short. A batch can never exceed what is outstanding, the receipt date cannot be in the future or before the challan date, and the same delivery cannot be saved twice (a double click or two people saving at once). The received pieces of each batch go to <b>JW Return QC</b> as their own lot (T9), keeping the lot's bundles and start date, while the rest stays At Job Worker. Anything still with the vendor past the expected date is <b>Overdue</b>.</div>
+<h3>Return QC, batch by batch</h3>
+<ol class="steps">
+  <li>On the challan page, click <b>Start QC</b> (or <b>Continue QC</b>) on a batch.</li>
+  <li>Enter <b>QC passed</b> and <b>QC rejected</b> pieces (reason required for rejects) and any remarks. You may inspect part of the batch now and the rest later.</li>
+  <li>Click <b>Save QC</b>. The batch shows Awaiting QC, QC In Progress or QC Complete, with the last inspector and date; every inspection is kept in <b>QC history</b>.</li>
+</ol>
+<div class="sys"><strong>System:</strong> passed + rejected can never exceed the pieces waiting in that batch. Only QC-passed pieces go back in-house at the next routing step (T10); rejected pieces go to <b>Rejected – WIP</b> for a rework, return-to-vendor or scrap decision on Rejections / Disposal. The challan status is worked out from its quantities: Awaiting Vendor Return → Partially Returned → QC Pending / QC In Progress → Rejections Pending Disposal → Completed, with indicators such as "2,500 pcs awaiting QC · 1,580 pcs outstanding with vendor".</div>
+</div>
+
+<div class="stage" id="fqi">
+<h3>6.8 Final inspection and finished goods</h3>
+<div class="meta"><span><b>Who:</b> QC inspector records; Admin (Quality head) approves</span><span><b>Screen:</b> FG &amp; Dispatch → Final Inspection</span></div>
+<ol class="steps">
+  <li><b>Step 1 – Lots ready for final inspection:</b> the inspector enters accepted and rejected nos (covering the whole lot), a reason for rejects and the test results, then clicks <b>Record</b>.</li>
+  <li><b>Step 2 – Awaiting Quality Admin approval:</b> an Admin checks the result and clicks <b>Approve → FG</b>.</li>
+</ol>
+<div class="sys"><strong>System:</strong> nothing moves when the result is recorded. On approval the accepted pieces become an <b>FG Lot</b> (FG-YYMM-####) in <b>FG Stores</b>, dated on the approval day (T11). Rejected pieces go to <b>Rejected – FG</b>, and the production lot closes. FG lots are listed in <span class="path">FG &amp; Dispatch → FG Stock (FG Stores)</span>.</div>
+</div>
+
+<div class="stage" id="dispatch">
+<h3>6.9 Dispatch and customer returns</h3>
+<div class="meta"><span><b>Who:</b> Dispatch clerk</span><span><b>Screen:</b> FG &amp; Dispatch → Dispatch</span></div>
+<ol class="steps">
+  <li>Due schedule lines show customer, Part No., quantity and due date, with the FIFO proposal of FG lots.</li>
+  <li>Enter the quantity, invoice no., vehicle no. and packing details, then save. Print the dispatch note from the list.</li>
+  <li>For a return, use <b>Customer Return Note</b> with the original dispatch no., FG lot, quantity and reason.</li>
+</ol>
+<div class="sys"><strong>System:</strong> dispatch cannot exceed FG available, nor the schedule balance unless an Admin ticks "Approve over-dispatch". FG goes out oldest-first (T15); the schedule becomes Partially Dispatched or Dispatched. A return can only come from a dispatch that carried that FG lot, up to what was dispatched, and goes to <b>Rejected – FG</b> (T16).</div>
+</div>
+
+<div class="stage" id="rejections">
+<h3>6.10 Rejections and disposal</h3>
+<div class="meta"><span><b>Who:</b> Admin (Quality head)</span><span><b>Screen:</b> Rejections → Rejections / Disposal</span></div>
+<p>Every rejection, from any stage, appears here with its stage, quantity, reason and status. Filter by stage, disposal or rejection no.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Where found</th><th>Choices</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>IQC (incoming RM)</td><td>Return to supplier · Accept under deviation · Scrap</td><td>RTS leaves stock (T4). Deviation makes the bundle Available with its original inward date.</td></tr>
+<tr><td>In process (WIP)</td><td>Rework · Scrap</td><td>Rework creates a new lot at the operation you choose (T13), still linked to the bundles.</td></tr>
+<tr><td>Job worker / JW return QC</td><td>Rework (in-house, or at a JW operation) · Scrap</td><td>As above.</td></tr>
+<tr><td>Final inspection / customer return</td><td>Rework · Scrap</td><td>Scrap is a final write-off (T14).</td></tr>
+</tbody></table></div>
+</div>
+
+<div class="stage" id="corrections">
+<h3>6.11 Corrections: stock adjustment and reversal (Admin)</h3>
+<div class="meta"><span><b>Screens:</b> Admin → Stock Adjustment · Transaction Reversal</span></div>
+<p><b>Stock Adjustment</b> changes a bundle's kg by a +/- amount with a reason (T17), for example after a physical count. <b>Transaction Reversal</b> posts the exact opposite of a wrong GRN, issue, dispatch or adjustment, with a reason. A transaction can be reversed only once, and an issue cannot be reversed once its lot has started production.</p>
+</div>
+</section>
+
+<section id="dashboard">
+<h2>7. Dashboard and reports</h2>
+<h3>Dashboard</h3>
+<p>Six cards show RM available (kg), bundles in Quality Hold, lots at job workers, FG available (nos), open MRNs and open JW challans. <b>Click a card</b> to see the records behind the number: each bundle, lot, MRN or challan with where it came from, and its ledger movements. Tables show five main columns; use <b>+ Add columns</b> for more detail, including the ledger cross-check. Below the cards, alerts list bundles held in QC too long, JW challans due within 3 days or overdue, and stock older than the top aging bucket.</p>
+<h3>Reports</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Report</th><th>What it answers</th><th>Export</th><th>Who</th></tr></thead>
+<tbody>
+<tr><td>Inventory Aging</td><td>How long RM / WIP / FG has been sitting, by bucket, as on any date</td><td>Excel, PDF</td><td>Admin</td></tr>
+<tr><td>Job Work Report</td><td>What is at each job worker, pending and overdue</td><td>Excel, PDF</td><td>All</td></tr>
+<tr><td>Stock Summary</td><td>Opening, inward, outward and closing for a date range</td><td>Excel, PDF</td><td>All</td></tr>
+<tr><td>MRN Status</td><td>Open and partially issued MRNs</td><td>Excel, PDF</td><td>All</td></tr>
+<tr><td>Issue Register</td><td>Every issue: MRN, bundle, heat no., kg issued, balance after</td><td>Excel, CSV, PDF</td><td>All</td></tr>
+<tr><td>PO Register</td><td>Ordered, received and balance per PO line, with GRNs (for IQC)</td><td>Excel, CSV, PDF</td><td>All</td></tr>
+<tr><td>Rejection Report</td><td>Rejections by stage, reason and disposal</td><td>Excel, PDF</td><td>Admin</td></tr>
+<tr><td>Schedule vs Dispatch</td><td>Schedule lines, dispatched, short and FG available</td><td>Excel, PDF</td><td>Admin</td></tr>
+<tr><td>Traceability Explorer</td><td>Full chain from any bundle, lot, FG lot or dispatch no.: PO → GRN → bundle → lot → JW challans → FG → dispatch</td><td>On screen</td><td>Admin</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="masters">
+<h2>8. Masters and settings</h2>
+<p><span class="path">Masters → Masters</span> holds the reference data: wire items (grade, diameter), parts with net weight per piece and scrap allowance %, BOM / routing steps (in-house or job work, default job worker, lead days), suppliers, job workers (with maximum return days), customers, locations, purchase orders, customer schedules and reason codes for each stage (IQC, WIP, JW, FQI, Customer, Adjustment, Return). Floor users can view masters; Admins can add and change them.</p>
+<p>Admin settings on the same screen: GRN tolerance %, aging buckets, Quality Hold alert days, JW due-alert days and the MRN kg edit limit.</p>
+<p><b>AI reading of PO documents</b> is switched on by setting <code>ANTHROPIC_API_KEY</code> on the server (optionally <code>PO_OCR_MODEL</code>). When it is on, uploaded PO documents are sent to Anthropic's API to be read. Nothing is saved until a person confirms the values.</p>
+</section>
+
+<section id="stock">
+<h2>9. Stock, locations and the ledger</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Location</th><th>Holds</th><th>Usable?</th></tr></thead>
+<tbody>
+<tr><td>Incoming / QC area</td><td>RM bundles in Quality Hold</td><td>No</td></tr>
+<tr><td>RM Stores</td><td>Accepted RM bundles</td><td>Yes, for issue</td></tr>
+<tr><td>Production floor (WIP)</td><td>Production lots at their current step</td><td>Yes, next step or JW send</td></tr>
+<tr><td>At Job Worker – vendor</td><td>Lots out for job work</td><td>No, until received back</td></tr>
+<tr><td>JW Return QC</td><td>Pieces back from the job worker awaiting QC</td><td>No</td></tr>
+<tr><td>FG Stores</td><td>FG lots per Part No.</td><td>Yes, for dispatch</td></tr>
+<tr><td>Rejection area (RM / WIP / FG)</td><td>Rejected material awaiting disposal</td><td>No</td></tr>
+<tr><td>Scrap / Returned (virtual)</td><td>Written off or returned to supplier</td><td>Final; stock is zero</td></tr>
+</tbody></table></div>
+<p>Every movement is one ledger row with date-time, user, document no., bundle or lot, quantity, from/to location and status, and a reason where required.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Transaction</th><th>Screen</th><th>Unit</th></tr></thead>
+<tbody>
+<tr><td>T1</td><td>Goods receipt</td><td>GRN</td><td>kg</td></tr>
+<tr><td>T2 / T3</td><td>IQC accept / reject</td><td>IQC (on approval)</td><td>kg</td></tr>
+<tr><td>T4</td><td>Return to supplier</td><td>Rejections</td><td>kg</td></tr>
+<tr><td>T5</td><td>Material issue (FIFO)</td><td>Material Issue</td><td>kg</td></tr>
+<tr><td>T6</td><td>Return to stores</td><td>Return to Stores</td><td>kg</td></tr>
+<tr><td>T7</td><td>Operation entry (good nos)</td><td>Production</td><td>nos</td></tr>
+<tr><td>T8 / T9 / T10</td><td>JW send / receive / return QC</td><td>JW Out · JW In</td><td>nos</td></tr>
+<tr><td>T11</td><td>Final inspection accept</td><td>Final Inspection (on approval)</td><td>nos</td></tr>
+<tr><td>T12</td><td>Rejection at any stage</td><td>Where it is found</td><td>kg or nos</td></tr>
+<tr><td>T13 / T14</td><td>Rework / scrap</td><td>Rejections</td><td>nos or kg</td></tr>
+<tr><td>T15 / T16</td><td>Dispatch / customer return</td><td>Dispatch</td><td>nos</td></tr>
+<tr><td>T17</td><td>Stock adjustment</td><td>Stock Adjustment</td><td>kg</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="numbers">
+<h2>10. Document numbers</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Document</th><th>Example</th><th>Document</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Bundle</td><td><code>RM-2610-0045</code></td><td>Production lot</td><td><code>PL-2610-0012</code></td></tr>
+<tr><td>GRN</td><td><code>GRN-2627-0101</code></td><td>FG lot</td><td><code>FG-2610-0031</code></td></tr>
+<tr><td>IQC</td><td><code>IQC-2627-0019</code></td><td>JW Out challan</td><td><code>JWO-2627-0003</code></td></tr>
+<tr><td>MRN</td><td><code>MRN-2627-0011</code></td><td>JW In receipt</td><td><code>JWI-2627-0002</code></td></tr>
+<tr><td>Issue</td><td><code>ISS-2627-0011</code></td><td>Dispatch note</td><td><code>DN-2627-0003</code></td></tr>
+<tr><td>Final inspection</td><td><code>FQI-2627-0003</code></td><td>Rejection</td><td><code>REJ-2627-0019</code></td></tr>
+</tbody></table></div>
+<p>Bundle, lot and FG lot numbers carry the year and month (YYMM). Documents carry the financial year (2627 = April 2026 to March 2027). Numbers are never reused, so a gap means a number was used and later removed or never saved.</p>
+</section>
+
+<section id="sop">
+<h2>11. SOP conformance</h2>
+<p>Each SOP requirement checked against the application on 22 Oct 2026. The automated checks (84 scenario checks plus the SOP and receipt suites) replay these rules through the real system on a test database.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>SOP</th><th>Requirement</th><th>Status</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>4.1</td><td>GRN against open PO; ≤ PO balance + tolerance; bundles in Quality Hold; GRN date = inward date</td><td><span class="pill ok">Follows</span></td><td>Plus receipt upload; future invoice dates blocked.</td></tr>
+<tr><td>4.2</td><td>IQC per bundle or whole GRN; accept / reject / deviation; stock moves only on approval; no partial acceptance</td><td><span class="pill ok">Follows</span></td><td></td></tr>
+<tr><td>4.3</td><td>System bundle no. RM-YYMM-####, tag with QR, never reused</td><td><span class="pill ok">Follows</span></td><td>First print by floor, reprint by Admin.</td></tr>
+<tr><td>4.4</td><td>MRN from BOM; kg editable within limits; no stock reserved</td><td><span class="pill ok">Follows</span></td><td></td></tr>
+<tr><td>4.5</td><td>FIFO issue, blocked wrong scan, Admin override with reason, production lot ↔ bundles, return to stores to same bundle</td><td><span class="pill ok">Follows</span></td><td>Return now also records why.</td></tr>
+<tr><td>4.6</td><td>Operation entries; good + rejected ≤ available; kg → nos at coiling; routing order; Pending-to-send-for-JW list</td><td><span class="pill ok">Follows</span></td><td>Partial entries supported.</td></tr>
+<tr><td>4.7</td><td>JW challan, oldest-first lots, expected return ≤ vendor max, partial receipts, QC on return, close with shortage, overdue flag</td><td><span class="pill ok">Follows</span></td><td>Vehicle no. and Excel/PDF export added.</td></tr>
+<tr><td>4.8</td><td>Final inspection recorded, approved; FG lot only on approval; full traceability</td><td><span class="pill ok">Follows</span></td><td></td></tr>
+<tr><td>4.9</td><td>Dispatch FIFO against schedule; ≤ FG available; over-dispatch needs Admin</td><td><span class="pill ok">Follows</span></td><td></td></tr>
+<tr><td>4.10</td><td>Rejections at every stage with reason; RTS / deviation / rework / scrap by Admin; customer return note</td><td><span class="pill ok">Follows</span></td><td></td></tr>
+<tr><td>7</td><td>FIFO on issue, JW send and dispatch; partial units keep inward date</td><td><span class="pill ok">Follows</span></td><td>SOP worked example MRN-2610-0008 is part of the automated checks.</td></tr>
+<tr><td>8</td><td>Aging, Job Work, Stock Summary, Traceability, Rejection, MRN Status, Schedule vs Dispatch; Excel and PDF</td><td><span class="pill ok">Follows</span></td><td>WIP aging shows each lot's current state (the ledger has no per-lot quantity history for WIP).</td></tr>
+<tr><td>9</td><td>Role matrix Admin / Floor; validations 1–13; alerts</td><td><span class="pill ok">Follows</span></td><td>Except validation 7, below.</td></tr>
+<tr><td>9 · 7</td><td>Lot at a JW step cannot move to the next in-house step until received back</td><td><span class="pill chg">Client change</span></td><td>Production can now skip a JW step with a reason.</td></tr>
+<tr><td>Client</td><td>PO always dated today; Issue Register; PO Register export; RM no. in MRN; filters</td><td><span class="pill ok">Done</span></td><td>Requested after the SOP.</td></tr>
+<tr><td>Client</td><td>Separate roles (Purchase, CFO, MD, Quality, Production, Store), allowed screens per user, second-level approvals</td><td><span class="pill open">Open</span></td><td>Waiting for the role list and approval rules.</td></tr>
+<tr><td>Client</td><td>Email to sales on dispatch; back-dated invoice approval; customer reference number; other materials by length / weight; variance alerts</td><td><span class="pill open">Open</span></td><td>Waiting for details from the client.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="messages">
+<h2>12. Common messages and what to do</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Message</th><th>What it means</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>Wrong bundle. Issue RM-… first</td><td>A newer bundle was scanned while an older one is available</td><td>Issue the named bundle, or ask an Admin to override with a reason</td></tr>
+<tr><td>Receipt qty exceeds PO balance + tolerance</td><td>More arrived than the PO allows</td><td>Check the weights; an Admin can add a PO line or raise the tolerance</td></tr>
+<tr><td>Invoice date cannot be in the future</td><td>The invoice date is after today</td><td>Enter the date printed on the invoice</td></tr>
+<tr><td>Entered quantity exceeds the remaining quantity of N units</td><td>Good + rejected is more than is pending at that step</td><td>Enter at most N; the rest has already been recorded</td></tr>
+<tr><td>Operations must follow routing sequence</td><td>The entry is for a different step than the lot's current one</td><td>Refresh the Production screen and enter against the shown step</td></tr>
+<tr><td>Receipt quantity exceeds challan pending quantity</td><td>More is entered than is still at the job worker</td><td>Check the challan's pending figure</td></tr>
+<tr><td>Accepted + rejected must equal …</td><td>QC must decide every piece received or in the lot</td><td>Make the two numbers add up to the lot quantity</td></tr>
+<tr><td>Dispatch qty exceeds schedule balance</td><td>More than the customer's open schedule</td><td>Reduce the quantity, or an Admin ticks Approve over-dispatch</td></tr>
+<tr><td>403 Forbidden / not permitted</td><td>Your role may not use that screen or action</td><td>Ask an Admin</td></tr>
+</tbody></table></div>
+</section>
+
+<footer>Spring Inventory · Inventory Module user guide · reflects the application as of 22 Oct 2026 and the SOP &amp; Process Flow v1.0 (13 Oct 2026).</footer>
+</main>
+</div>

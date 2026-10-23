@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/server/auth/config";
 import { can } from "@/server/policy";
-import { buildReport, isReportName, REPORT_ACCESS, toPdf, toXlsx } from "@/server/services/reportExport";
+import { buildReport, isReportName, REPORT_ACCESS, toCsv, toPdf, toXlsx } from "@/server/services/reportExport";
+import { userMessage } from "@/server/userError";
 
 export const runtime = "nodejs";
 
@@ -17,9 +18,24 @@ export async function GET(req: Request, ctx: { params: Promise<{ report: string 
 
   const url = new URL(req.url);
   const params = Object.fromEntries(url.searchParams.entries());
-  const format = params.format === "pdf" ? "pdf" : "xlsx";
-  const tables = await buildReport(report, params);
+  const format = params.format === "pdf" ? "pdf" : params.format === "csv" ? "csv" : "xlsx";
+  let tables;
+  try {
+    tables = await buildReport(report, params);
+  } catch (e) {
+    // Plain message for the user; the details go to the server log.
+    return new NextResponse(userMessage(e), { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  }
   const stamp = new Date().toISOString().slice(0, 10);
+
+  if (format === "csv") {
+    return new NextResponse(toCsv(tables), {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${report}-${stamp}.csv"`,
+      },
+    });
+  }
 
   if (format === "pdf") {
     const bytes = await toPdf(tables);

@@ -213,6 +213,10 @@ async function main() {
     ["ADJ-COUNT", "Adjustment", "Physical count correction"],
     ["ADJ-DAMAGE", "Adjustment", "Damage write-off"],
     ["ADJ-OTHER", "Adjustment", "Other admin adjustment"],
+    ["RTN-EXCESS", "Return", "Excess wire issued / not needed"],
+    ["RTN-PLAN", "Return", "Production plan changed / MRN reduced"],
+    ["RTN-WRONG", "Return", "Wrong grade or bundle issued"],
+    ["RTN-QUALITY", "Return", "Quality concern found on the floor"],
   ] as const;
   for (const [code, stage, description] of reasonCodes) {
     await prisma.reasonCode.upsert({ where: { code }, update: {}, create: { code, stage, description } });

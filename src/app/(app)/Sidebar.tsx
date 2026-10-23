@@ -43,6 +43,7 @@ const GROUPS: NavGroup[] = [
     title: "FG & Dispatch",
     items: [
       { href: "/final-inspection", label: "Final Inspection" },
+      { href: "/fg-stock", label: "FG Stock (FG Stores)" },
       { href: "/dispatch", label: "Dispatch" },
     ],
   },
@@ -70,6 +71,8 @@ const GROUPS: NavGroup[] = [
       { href: "/reports/stock-summary", label: "Stock Summary" },
       { href: "/reports/rejections", label: "Rejection Report", adminOnly: true },
       { href: "/reports/mrn-status", label: "MRN Status" },
+      { href: "/reports/issue-register", label: "Issue Register" },
+      { href: "/reports/po-register", label: "PO Register" },
       { href: "/reports/schedule-vs-dispatch", label: "Schedule vs Dispatch", adminOnly: true },
       { href: "/traceability", label: "Traceability Explorer", adminOnly: true },
     ],
@@ -85,7 +88,7 @@ const isActive = (path: string, href: string) => path === href || path.startsWit
 export function Sidebar({ role }: { role: Role }) {
   const path = usePathname() ?? "";
   return (
-    <aside className="no-print hidden md:flex w-64 shrink-0 h-screen flex-col">
+    <aside className="no-print hidden md:flex w-64 shrink-0 h-full flex-col">
       {/* White brand band: the logo artwork is designed for a white background. Same height as the top bar. */}
       <Link
         href="/dashboard"

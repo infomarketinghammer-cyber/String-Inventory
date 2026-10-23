@@ -4,6 +4,8 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
 import { prisma } from "@/lib/prisma";
+import { toUserError } from "@/server/userError";
+import { createJobWorker } from "@/server/services/jobwork";
 
 /** Redirect back to /masters with a banner message. */
 function done(ok: string): never {
@@ -21,7 +23,8 @@ async function guarded<T>(what: string, fn: () => Promise<T>): Promise<T> {
     if (typeof e === "object" && e && (e as { code?: string }).code === "P2002") {
       fail(`${what} already exists.`);
     }
-    throw e;
+    // Anything else: a safe message on screen, details only in the server log.
+    fail(toUserError(e).message);
   }
 }
 
@@ -83,12 +86,14 @@ export async function createJobWorkerAction(formData: FormData) {
   const parsed = jobWorkerSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) fail("Enter a name and a max return period of 1-365 days.");
   await guarded("A job worker or location with that name", () =>
-    prisma.$transaction(async (tx) => {
-      const location = await tx.location.create({
-        data: { name: `At Job Worker - ${parsed.data.name}`, type: "JW_VENDOR" },
-      });
-      await tx.jobWorker.create({ data: { ...parsed.data, locationId: location.id } });
-    }),
+    prisma.$transaction((tx) =>
+      createJobWorker(tx, {
+        name: parsed.data.name,
+        address: parsed.data.address ?? undefined,
+        gstin: parsed.data.gstin ?? undefined,
+        maxReturnDays: parsed.data.maxReturnDays,
+      }),
+    ),
   );
   done("Job worker added with its own location.");
 }

@@ -61,11 +61,20 @@ export async function traceChain(query: string): Promise<TraceChain | null> {
     bundleIds = [...new Set([...bundleIds, ...links.map((l) => l.bundleId)])];
   }
 
+  // A lot split off at a partial job-work return (or a partial return QC) was sent on an ancestor's challan line.
+  const challanLotIds = new Set(lotIds);
+  let frontier = lotIds;
+  for (let depth = 0; depth < 6 && frontier.length > 0; depth++) {
+    const up = await prisma.productionLot.findMany({ where: { id: { in: frontier } }, select: { parentLotId: true } });
+    frontier = up.flatMap((l) => (l.parentLotId && !challanLotIds.has(l.parentLotId) ? [l.parentLotId] : []));
+    frontier.forEach((id) => challanLotIds.add(id));
+  }
+
   const [bundleRows, lotRows, fgLotRows, jwLines, dispatchLines] = await Promise.all([
     prisma.bundle.findMany({ where: { id: { in: bundleIds } } }),
     prisma.productionLot.findMany({ where: { id: { in: lotIds } }, include: { part: true } }),
     prisma.fgLot.findMany({ where: { id: { in: fgLotIds } }, include: { part: true } }),
-    prisma.jwChallanLine.findMany({ where: { lotId: { in: lotIds } }, include: { challan: { include: { vendor: true } } } }),
+    prisma.jwChallanLine.findMany({ where: { lotId: { in: [...challanLotIds] } }, include: { challan: { include: { vendor: true } } } }),
     prisma.dispatchLine.findMany({ where: { fgLotId: { in: fgLotIds } }, include: { dispatch: { include: { customer: true } } } }),
   ]);
 

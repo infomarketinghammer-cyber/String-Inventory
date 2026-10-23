@@ -17,7 +17,6 @@ export async function createPo(params: {
   /** An existing supplier id, or NEW_SUPPLIER together with `newSupplier`. */
   supplierId: string;
   newSupplier?: { name: string; gstin?: string };
-  poDate?: Date;
   lines: NewPoLine[];
   document?: { path: string; name: string; mime: string } | null;
 }) {
@@ -52,7 +51,8 @@ export async function createPo(params: {
       data: {
         poNo,
         supplierId: supplier.id,
-        poDate: params.poDate ?? new Date(),
+        // A PO is always dated today: no post-dated or back-dated POs (client rule). Not user-editable.
+        poDate: new Date(),
         ...(params.document
           ? { documentPath: params.document.path, documentName: params.document.name, documentMime: params.document.mime }
           : {}),

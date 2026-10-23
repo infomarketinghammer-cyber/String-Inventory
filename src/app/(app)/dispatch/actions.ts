@@ -1,10 +1,10 @@
 "use server";
 
+import { toUserError } from "@/server/userError";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
 import { createDispatch, createCustomerReturn } from "@/server/services/dispatch";
-import { ValidationError } from "@/server/services/errors";
 import { can } from "@/server/policy";
 
 const schema = z.object({
@@ -33,9 +33,9 @@ export async function createDispatchAction(formData: FormData) {
       adminOverride: formData.get("approveOverDispatch") === "on" && can(user, "finalInspection.approve"),
     });
     redirect(`/dispatch?ok=${encodeURIComponent(`Dispatch ${dispatch.dispatchNo} saved.`)}`);
-  } catch (e) {
-    if (e instanceof ValidationError) redirect(`/dispatch?err=${encodeURIComponent(e.message)}`);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    redirect(`/dispatch?err=${encodeURIComponent(e.message)}`);
   }
 }
 
@@ -59,8 +59,8 @@ export async function createCustomerReturnAction(formData: FormData) {
   try {
     const rej = await createCustomerReturn({ ...parsed.data, userId: user.id });
     redirect(`/dispatch?ok=${encodeURIComponent(`Customer return recorded as ${rej.rejNo} (Rejected – FG).`)}`);
-  } catch (e) {
-    if (e instanceof ValidationError) redirect(`/dispatch?err=${encodeURIComponent(e.message)}`);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    redirect(`/dispatch?err=${encodeURIComponent(e.message)}`);
   }
 }

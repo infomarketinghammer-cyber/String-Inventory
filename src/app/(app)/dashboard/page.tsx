@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import type { CardKey } from "@/server/services/dashboardDetails";
 import { requireUser } from "@/server/auth/session";
 import { getQcHoldAlertDays, getJwAlertDaysBefore, getAgingBuckets } from "@/server/services/settings";
 import { formatDate, formatKg, formatNos } from "@/lib/format";
@@ -62,12 +64,12 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Dashboard</h1>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="RM Available (kg)" value={formatKg(availableBundles._sum.balanceKg ?? 0)} />
-        <KpiCard label="Bundles in Quality Hold" value={String(holdCount)} />
-        <KpiCard label="Lots At Job Worker" value={String(atJwLots)} />
-        <KpiCard label="FG Available (nos)" value={formatNos(fgLots._sum.balanceNos ?? 0)} />
-        <KpiCard label="Open/Partial MRNs" value={String(openMrns)} />
-        <KpiCard label="Open JW Challans" value={String(openChallans.length)} />
+        <KpiCard card="rm-available" label="RM Available (kg)" value={formatKg(availableBundles._sum.balanceKg ?? 0)} />
+        <KpiCard card="quality-hold" label="Bundles in Quality Hold" value={String(holdCount)} />
+        <KpiCard card="at-jobwork" label="Lots At Job Worker" value={String(atJwLots)} />
+        <KpiCard card="fg-available" label="FG Available (nos)" value={formatNos(fgLots._sum.balanceNos ?? 0)} />
+        <KpiCard card="open-mrns" label="Open/Partial MRNs" value={String(openMrns)} />
+        <KpiCard card="open-challans" label="Open JW Challans" value={String(openChallans.length)} />
       </div>
 
       <div className="card p-4">
@@ -122,15 +124,24 @@ export default async function DashboardPage() {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
+/** Clicking a card opens /dashboard/[card]: the records behind the number, checked against the ledger. */
+function KpiCard({ card, label, value }: { card: CardKey; label: string; value: string }) {
   return (
-    <div className="card p-4" style={{ borderLeft: "4px solid var(--brand)" }}>
+    <Link
+      href={`/dashboard/${card}`}
+      className="card kpi-card block p-4"
+      style={{ borderLeft: "4px solid var(--brand)" }}
+      title={`View the records behind "${label}"`}
+    >
       <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--muted)" }}>
         {label}
       </div>
       <div className="text-2xl font-semibold mt-1" style={{ color: "var(--brand-ink)" }}>
         {value}
       </div>
-    </div>
+      <div className="text-xs mt-2" style={{ color: "var(--brand)" }}>
+        View details →
+      </div>
+    </Link>
   );
 }

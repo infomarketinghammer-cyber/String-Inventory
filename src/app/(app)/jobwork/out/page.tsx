@@ -4,7 +4,9 @@ import { Banner } from "@/components/Banner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate, formatNos } from "@/lib/format";
 import { listPendingForJobWork } from "@/server/services/production";
+import { can } from "@/server/policy";
 import { createJwOutAction } from "./actions";
+import { JobWorkerSelect } from "./JobWorkerSelect";
 
 const field = "rounded border px-2 py-1.5 bg-transparent text-sm w-full";
 
@@ -96,21 +98,20 @@ export default async function JwOutPage(props: { searchParams: Promise<{ ok?: st
         </div>
 
         {pendingLots.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <JobWorkerSelect
+              vendors={vendors.map((v) => ({ id: v.id, name: v.name, maxReturnDays: v.maxReturnDays }))}
+              defaultVendorId={firstOp?.defaultVendorId ?? ""}
+              canAdd={can(user, "masters.manage")}
+            />
             <label className="text-sm font-medium">
-              Job worker <span className="text-red-600">*</span>
-              <select name="vendorId" required defaultValue={firstOp?.defaultVendorId ?? ""} className={field}>
-                <option value="">Select job worker...</option>
-                {vendors.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} (max {v.maxReturnDays} d)
-                  </option>
-                ))}
-              </select>
+              Vehicle No. <span className="text-red-600">*</span>
+              <input name="vehicleNo" required placeholder="e.g. MH12AB1234" className={field} />
             </label>
             <label className="text-sm font-medium">
               Expected return date
-              <input name="expectedReturnDate" type="date" className={field} />
+              {/* Today or later only; past dates cannot be picked (the server refuses them too). */}
+              <input name="expectedReturnDate" type="date" min={new Date().toLocaleDateString("en-CA")} className={field} />
               <span className="block text-xs font-normal" style={{ color: "var(--muted)" }}>
                 Blank = challan date + agreed lead time
               </span>
@@ -138,6 +139,7 @@ export default async function JwOutPage(props: { searchParams: Promise<{ ok?: st
               <th className="py-2">Challan No.</th>
               <th>Date</th>
               <th>Vendor</th>
+              <th>Vehicle No.</th>
               <th>Lots</th>
               <th>Expected return</th>
               <th>Status</th>
@@ -147,18 +149,31 @@ export default async function JwOutPage(props: { searchParams: Promise<{ ok?: st
           <tbody>
             {challans.map((c) => (
               <tr key={c.id} className="border-b" style={{ borderColor: "var(--border)" }}>
-                <td className="py-2">{c.challanNo}</td>
+                <td className="py-2">
+                  <a href={`/jobwork/challan/${c.id}`} className="underline font-medium">
+                    {c.challanNo}
+                  </a>
+                </td>
                 <td>{formatDate(c.date)}</td>
                 <td>{c.vendor.name}</td>
+                <td>{c.vehicleNo ?? "-"}</td>
                 <td>{c.lines.map((l) => l.lot.lotNo).join(", ")}</td>
                 <td>{formatDate(c.expectedReturnDate)}</td>
                 <td>
                   <StatusBadge status={c.status !== "CLOSED" && c.expectedReturnDate < new Date() ? "OVERDUE" : c.status} />
                 </td>
                 <td>
-                  <a href={`/print/jw-challan/${c.id}`} target="_blank" rel="noreferrer" className="underline text-xs">
-                    Print challan
-                  </a>
+                  <div className="flex gap-3 text-xs whitespace-nowrap">
+                    <a href={`/print/jw-challan/${c.id}`} target="_blank" rel="noreferrer" className="underline">
+                      Print
+                    </a>
+                    <a href={`/api/reports/jw-challan?challanId=${c.id}&format=xlsx`} className="underline">
+                      Excel
+                    </a>
+                    <a href={`/api/reports/jw-challan?challanId=${c.id}&format=pdf`} className="underline">
+                      PDF
+                    </a>
+                  </div>
                 </td>
               </tr>
             ))}

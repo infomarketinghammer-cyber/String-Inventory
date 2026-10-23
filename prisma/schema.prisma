@@ -399,6 +399,10 @@ model ProductionLot {
   locationId   String
   location     Location  @relation(fields: [locationId], references: [id])
   startDate    DateTime  @default(now())
+  // Set when this lot was split off a lot at a job worker for a partial return (SOP 4.7: partial returns go to QC).
+  parentLotId  String?
+  parentLot    ProductionLot?  @relation("LotSplit", fields: [parentLotId], references: [id])
+  splitLots    ProductionLot[] @relation("LotSplit")
 
   bundleLinks      LotBundleLink[]
   opEntries        OperationEntry[]
@@ -433,6 +437,13 @@ model OperationEntry {
   reasonCodeId String?
   enteredById  String
   createdAt    DateTime      @default(now())
+  // Job work is optional per lot: production may skip a JW routing step (no JW challan, no stock movement).
+  skipped      Boolean       @default(false)
+  remarks      String?
+  // One-time token from the entry form: a repeated submit (double click) can never save the same entry twice.
+  clientToken  String?       @unique
+
+  @@index([lotId, opSeq])
 }
 
 // ---------- Job Work ----------
@@ -442,6 +453,7 @@ model JwOutChallan {
   challanNo                String        @unique
   vendorId                 String
   vendor                   JobWorker     @relation(fields: [vendorId], references: [id])
+  vehicleNo                String? // vehicle carrying the material to the job worker
   date                     DateTime      @default(now())
   expectedReturnDate       DateTime
   status                   ChallanStatus @default(OPEN)
@@ -472,8 +484,13 @@ model JwInReceipt {
   receiptNo   String          @unique
   challanId   String
   challan     JwOutChallan    @relation(fields: [challanId], references: [id])
-  date        DateTime        @default(now())
+  date        DateTime        @default(now()) // actual receipt date (a return batch)
   createdById String
+  createdAt   DateTime        @default(now())
+  vendorDcNo  String? // vendor's delivery challan / document no. for this batch
+  remarks     String?
+  // One-time token from the receipt form: the same physical receipt can never be saved twice.
+  clientToken String?         @unique
   lines       JwReceiptLine[]
 }
 
@@ -488,6 +505,30 @@ model JwReceiptLine {
   receivedNos   Int
   rejectedNos   Int           @default(0)
   shortNos      Int           @default(0)
+  // Partial return: the good pieces of this receipt were split into their own lot, which went to JW Return QC.
+  splitLotId    String?
+  // The lot that holds this batch's good pieces for JW Return QC (the split lot, or the sent lot for the last batch).
+  qcLotId       String?
+  qcEntries     JwQcEntry[]
+}
+
+// One JW Return QC inspection of (part of) a return batch. A batch can be inspected in several entries.
+model JwQcEntry {
+  id            String         @id @default(cuid())
+  receiptLineId String?
+  receiptLine   JwReceiptLine? @relation(fields: [receiptLineId], references: [id])
+  lotId         String // the QC lot inspected
+  acceptedNos   Int
+  rejectedNos   Int
+  reasonCodeId  String?
+  remarks       String?
+  acceptedLotId String? // lot carrying the accepted pieces on to the next operation
+  inspectedById String
+  createdAt     DateTime       @default(now())
+  clientToken   String?        @unique
+
+  @@index([receiptLineId])
+  @@index([lotId])
 }
 
 // ---------- Final inspection / FG / Dispatch ----------

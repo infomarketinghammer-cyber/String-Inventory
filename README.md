@@ -147,19 +147,24 @@ the rules, including the negative cases. What to know:
 npm run db:verify     # reconciles every Bundle / FG Lot balance against the ledger
 npm run db:scenario   # end-to-end SOP replay through the real services (writes data!)
 npm run db:sop-check  # SOP 4.2-4.10 data flow + role matrix checks (writes data!)
+npm run db:receipt-check # PO / GRN / receipt-upload / invoice-date rules (writes data!)
 npm test              # Vitest unit tests (FIFO engine, permission matrix, doc numbers)
 npm run test:e2e      # Playwright specs (need the app running)
 ```
 
-`db:scenario` writes data, so run it against a scratch database:
+`db:scenario`, `db:receipt-check` and `db:sop-check` write test data, so they only run when
+`DATABASE_URL` is set explicitly to a scratch database. They refuse to start against `dev.db` or when
+the variable comes only from `.env` (see `prisma/scratch-guard.ts`):
 
-```bash
-DATABASE_URL=file:./scenario.db npx prisma db push --force-reset
-DATABASE_URL=file:./scenario.db npm run db:seed
-DATABASE_URL=file:./scenario.db npm run db:scenario
+```powershell
+$env:DATABASE_URL="file:./scenario.db"
+npx prisma db push --force-reset --skip-generate
+npm run db:seed
+npm run db:scenario; npm run db:receipt-check; npm run db:sop-check; npm run db:verify
+Remove-Item Env:DATABASE_URL   # back to the working database
 ```
 
-(PowerShell: `$env:DATABASE_URL="file:./scenario.db"` before the three commands.) It covers GRN
+`db:scenario` covers GRN
 tolerance, IQC, the FIFO worked example (including blocked out-of-order scans), return to stores,
 production limits, job-work send/receive/QC/close-with-shortage, final inspection, dispatch and
 over-dispatch approval, customer returns, rejection disposal (RTS / rework / scrap), adjustments

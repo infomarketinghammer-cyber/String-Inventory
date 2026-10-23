@@ -1,3 +1,4 @@
+import { Field } from "@/components/Field";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/server/auth/session";
 import { can } from "@/server/policy";
@@ -18,13 +19,21 @@ export default async function UsersPage(props: { searchParams: Promise<{ ok?: st
       <Banner ok={searchParams.ok} err={searchParams.err} />
 
       <form action={createUserAction} className="card p-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-        <input aria-label="Full name" name="name" required placeholder="Full name" className="rounded border px-2 py-1.5 bg-transparent" />
-        <input aria-label="Email" name="email" type="email" required placeholder="Email" className="rounded border px-2 py-1.5 bg-transparent" />
-        <select aria-label="Role" name="role" required className="rounded border px-2 py-1.5 bg-transparent">
-          <option value="FLOOR">Floor</option>
-          <option value="ADMIN">Admin</option>
-        </select>
-        <input aria-label="Temp password" name="password" type="password" required placeholder="Temp password" className="rounded border px-2 py-1.5 bg-transparent" />
+        <Field label="Full name">
+          <input name="name" required placeholder="Full name" className="w-full rounded border px-2 py-1.5 bg-transparent" />
+        </Field>
+        <Field label="Email">
+          <input name="email" type="email" required placeholder="Email" className="w-full rounded border px-2 py-1.5 bg-transparent" />
+        </Field>
+        <Field label="Role">
+          <select name="role" required className="w-full rounded border px-2 py-1.5 bg-transparent">
+            <option value="FLOOR">Floor</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+        </Field>
+        <Field label="Temp password">
+          <input name="password" type="password" required placeholder="Temp password" className="w-full rounded border px-2 py-1.5 bg-transparent" />
+        </Field>
         <button type="submit" className="btn-primary px-4 py-2 text-sm font-medium min-h-11">
           Create user
         </button>
@@ -52,9 +61,11 @@ export default async function UsersPage(props: { searchParams: Promise<{ ok?: st
                 <td>{u.active ? "Yes" : "No"}</td>
                 <td>{u.lastLoginAt ? formatDate(u.lastLoginAt) : "-"}</td>
                 <td>
-                  <form action={resetPasswordAction} className="flex gap-1">
+                  <form action={resetPasswordAction} className="flex gap-1 items-end">
                     <input type="hidden" name="userId" value={u.id} />
-                    <input aria-label="New password" name="newPassword" placeholder="New password" className="w-28 rounded border px-1 py-1 bg-transparent text-xs" />
+                    <Field label="New password">
+                      <input name="newPassword" placeholder="New password" className="w-28 rounded border px-1 py-1 bg-transparent text-xs" />
+                    </Field>
                     <button type="submit" className="text-xs underline">
                       Reset
                     </button>

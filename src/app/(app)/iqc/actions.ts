@@ -1,10 +1,10 @@
 "use server";
 
+import { toUserError } from "@/server/userError";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
 import { enterIqcResult, enterIqcForGrn, approveIqc } from "@/server/services/iqc";
-import { ValidationError } from "@/server/services/errors";
 
 const go = (kind: "ok" | "err", msg: string): never => redirect(`/iqc?${kind}=${encodeURIComponent(msg)}`);
 
@@ -44,9 +44,9 @@ export async function enterIqcAction(formData: FormData) {
     }
     const iqc = await enterIqcResult({ bundleId: d.bundleId!, decision: d.decision, reasonCodeId: d.reasonCodeId, results, userId: user.id });
     go("ok", `IQC ${iqc.iqcNo} entered. Awaiting Quality Admin approval.`);
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }
 
@@ -62,8 +62,8 @@ export async function approveIqcAction(formData: FormData) {
         ? `IQC approved: bundle ${result.bundle.bundleNo} moved to Rejected – RM (Return-to-Supplier list).`
         : `IQC approved: bundle ${result?.bundle.bundleNo} is now Available in RM Stores. Print its bundle tag below.`,
     );
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }

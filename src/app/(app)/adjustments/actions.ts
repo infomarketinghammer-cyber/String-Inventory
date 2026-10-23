@@ -1,10 +1,10 @@
 "use server";
 
+import { toUserError } from "@/server/userError";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
 import { adjustBundleStock } from "@/server/services/adjustment";
-import { ValidationError } from "@/server/services/errors";
 
 const schema = z.object({
   bundleId: z.string().min(1),
@@ -23,8 +23,8 @@ export async function adjustStockAction(formData: FormData) {
   try {
     await adjustBundleStock({ ...parsed.data, adminId: user.id });
     redirect(`/adjustments?ok=${encodeURIComponent("Adjustment recorded.")}`);
-  } catch (e) {
-    if (e instanceof ValidationError) redirect(`/adjustments?err=${encodeURIComponent(e.message)}`);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    redirect(`/adjustments?err=${encodeURIComponent(e.message)}`);
   }
 }

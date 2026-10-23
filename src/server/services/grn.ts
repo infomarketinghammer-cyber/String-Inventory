@@ -33,6 +33,11 @@ export interface CreateGrnInput {
   receipt?: { receiptPath: string; receiptName: string; receiptMime: string } | null;
 }
 
+/** YYYY-MM-DD of a moment in the plant's (server's) local time zone. Date inputs arrive as that calendar day. */
+export function localDateString(d: Date): string {
+  return d.toLocaleDateString("en-CA");
+}
+
 export async function createGrn(input: CreateGrnInput) {
   if (input.bundles.length === 0) {
     throw new ValidationError("GRN must contain at least one bundle.");
@@ -40,6 +45,10 @@ export async function createGrn(input: CreateGrnInput) {
   if (!input.invoiceNo.trim()) throw new ValidationError("Supplier invoice no. is required.");
   if (input.bundles.some((b) => !(b.weightKg > 0) || !b.heatNo.trim())) {
     throw new ValidationError("Every bundle needs a Heat No. and a weight above zero.");
+  }
+  // Client rule: the supplier invoice date can never be post-dated (after today).
+  if (input.invoiceDate && input.invoiceDate.toISOString().slice(0, 10) > localDateString(new Date())) {
+    throw new ValidationError("Invoice date cannot be in the future.");
   }
 
   return prisma.$transaction(async (tx) => {

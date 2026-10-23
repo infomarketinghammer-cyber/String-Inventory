@@ -16,8 +16,18 @@ import {
   type ItemKind,
   type ReportTable,
 } from "./reports";
+import { issueRegisterTable, jwChallanTable, poRegisterTable } from "./registers";
 
-export type ReportName = "aging" | "jobwork" | "stock-summary" | "rejections" | "mrn-status" | "schedule-vs-dispatch";
+export type ReportName =
+  | "aging"
+  | "jobwork"
+  | "stock-summary"
+  | "rejections"
+  | "mrn-status"
+  | "schedule-vs-dispatch"
+  | "issue-register"
+  | "po-register"
+  | "jw-challan";
 
 /** Section 9: Admin sees all reports; Floor sees stock, MRN and JW pending only. */
 export const REPORT_ACCESS: Record<ReportName, Action> = {
@@ -27,6 +37,10 @@ export const REPORT_ACCESS: Record<ReportName, Action> = {
   jobwork: "reports.viewLimited",
   "stock-summary": "reports.viewLimited",
   "mrn-status": "reports.viewLimited",
+  // Store's record of issues; PO register is exported by the IQC team; a challan is exported by whoever makes it.
+  "issue-register": "reports.viewLimited",
+  "po-register": "reports.viewLimited",
+  "jw-challan": "jw.challan",
 };
 
 export function isReportName(s: string): s is ReportName {
@@ -68,7 +82,42 @@ export async function buildReport(name: ReportName, p: Params): Promise<ReportTa
       return [await mrnStatusTable()];
     case "schedule-vs-dispatch":
       return [await scheduleVsDispatchTable()];
+    case "issue-register":
+      return [
+        await issueRegisterTable({
+          from: p.from ? parseDate(p.from, new Date()) : undefined,
+          to: p.to ? parseDate(p.to, new Date()) : undefined,
+          q: p.q,
+        }),
+      ];
+    case "po-register":
+      return [
+        await poRegisterTable({
+          supplierId: p.supplierId || undefined,
+          status: p.status === "OPEN" || p.status === "CLOSED" ? p.status : undefined,
+          q: p.q,
+        }),
+      ];
+    case "jw-challan":
+      return [await jwChallanTable(p.challanId ?? "")];
   }
+}
+
+/** CSV (Excel-compatible, UTF-8 with BOM). Several tables are separated by their title line and a blank line. */
+export function toCsv(tables: ReportTable[]): string {
+  const cell = (v: string | number) => {
+    const s = String(v ?? "");
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const parts = tables.map((t) =>
+    [
+      cell(t.title),
+      ...(t.subtitle ? t.subtitle.split(" | ").map(cell) : []),
+      t.columns.map(cell).join(","),
+      ...t.rows.map((r) => r.map(cell).join(",")),
+    ].join("\r\n"),
+  );
+  return "﻿" + parts.join("\r\n\r\n") + "\r\n";
 }
 
 export async function toXlsx(tables: ReportTable[]): Promise<Buffer> {
@@ -78,7 +127,8 @@ export async function toXlsx(tables: ReportTable[]): Promise<Buffer> {
   tables.forEach((t, i) => {
     const ws = wb.addWorksheet(sheetName(t.title, i));
     ws.addRow([t.title]).font = { bold: true, size: 14 };
-    if (t.subtitle) ws.addRow([t.subtitle]).font = { italic: true };
+    const subLines = t.subtitle ? t.subtitle.split(" | ") : [];
+    for (const line of subLines) ws.addRow([line]).font = { italic: true };
     ws.addRow([]);
     const head = ws.addRow(t.columns);
     head.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -90,7 +140,7 @@ export async function toXlsx(tables: ReportTable[]): Promise<Buffer> {
       const widest = Math.max(c.length, ...t.rows.map((r) => String(r[idx] ?? "").length));
       ws.getColumn(idx + 1).width = Math.min(40, widest + 2);
     });
-    ws.views = [{ state: "frozen", ySplit: 4 }];
+    ws.views = [{ state: "frozen", ySplit: 3 + subLines.length }];
   });
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
@@ -128,10 +178,12 @@ export async function toPdf(tables: ReportTable[]): Promise<Uint8Array> {
     const header = () => {
       page.drawText(fit(t.title, W - 2 * M, bold), { x: M, y, size: 13, font: bold });
       y -= 16;
-      if (t.subtitle) {
-        page.drawText(fit(t.subtitle, W - 2 * M), { x: M, y, size: 9, font });
-        y -= 14;
+      // " | " separates header lines (e.g. a challan's date / job worker / vehicle no.).
+      for (const line of t.subtitle ? t.subtitle.split(" | ") : []) {
+        page.drawText(fit(line, W - 2 * M), { x: M, y, size: 9, font });
+        y -= 13;
       }
+      if (t.subtitle) y -= 2;
       page.drawRectangle({ x: M, y: y - 4, width: W - 2 * M, height: rowH, color: rgb(0.12, 0.22, 0.39) });
       t.columns.forEach((c, i) =>
         page.drawText(fit(c, colW, bold), { x: M + i * colW + 2, y, size: fontSize, font: bold, color: rgb(1, 1, 1) }),

@@ -1,3 +1,4 @@
+import { Field } from "@/components/Field";
 import { requireUser } from "@/server/auth/session";
 import { Banner } from "@/components/Banner";
 import { changePasswordAction } from "./actions";
@@ -15,9 +16,15 @@ export default async function ChangePasswordPage(props: { searchParams: Promise<
           Signed in as {user.email}. You must choose your own password before continuing.
         </p>
         <Banner err={searchParams.err} />
-        <input aria-label="Current (temporary) password" name="current" type="password" required autoComplete="current-password" placeholder="Current (temporary) password" className={input} />
-        <input aria-label="New password (8+ characters)" name="next" type="password" required minLength={8} autoComplete="new-password" placeholder="New password (8+ characters)" className={input} />
-        <input aria-label="Confirm new password" name="confirm" type="password" required minLength={8} autoComplete="new-password" placeholder="Confirm new password" className={input} />
+        <Field label="Current (temporary) password">
+          <input name="current" type="password" required autoComplete="current-password" placeholder="Current (temporary) password" className={input} />
+        </Field>
+        <Field label="New password (8+ characters)">
+          <input name="next" type="password" required minLength={8} autoComplete="new-password" placeholder="New password (8+ characters)" className={input} />
+        </Field>
+        <Field label="Confirm new password">
+          <input name="confirm" type="password" required minLength={8} autoComplete="new-password" placeholder="Confirm new password" className={input} />
+        </Field>
         <button type="submit" className="w-full btn-primary px-4 py-2 text-sm font-medium min-h-11">
           Save password
         </button>

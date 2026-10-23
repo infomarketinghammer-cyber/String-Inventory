@@ -17,7 +17,7 @@ import { createGrn } from "../src/server/services/grn";
 import { enterIqcResult, enterIqcForGrn, approveIqc } from "../src/server/services/iqc";
 import { createMrn } from "../src/server/services/mrn";
 import { createIssue, returnToStores, recomputeMrnStatus, suggestFifoForMrn } from "../src/server/services/issue";
-import { recordOperationEntry } from "../src/server/services/production";
+import { operationProgress, recordOperationEntry } from "../src/server/services/production";
 import {
   createJwOutChallan,
   createJwInReceipt,
@@ -65,11 +65,16 @@ async function main() {
   for (const m of await prisma.mrn.findMany()) await recomputeMrnStatus(prisma, m.id);
 
   // ------------------------------------------------------------------ POs (reference data)
+  // Live POs are always dated today; demo history is created normally and then given its historic date.
+  const historicPo = async (p: Parameters<typeof createPo>[0], date: Date) => {
+    const po = await createPo(p);
+    return prisma.po.update({ where: { id: po.id }, data: { poDate: date }, include: { lines: true } });
+  };
   console.log("Purchase orders");
-  const po1 = await createPo({ poNo: "PO-2627-0101", supplierId: (await supplier("Tata Steel Wire")).id, poDate: daysAgo(210), lines: [{ itemId: swb20.id, orderedKg: 1500 }, { itemId: hc16.id, orderedKg: 1200 }] });
-  const po2 = await createPo({ poNo: "PO-2627-0102", supplierId: (await supplier("Bekaert India")).id, poDate: daysAgo(205), lines: [{ itemId: swc40.id, orderedKg: 2000 }, { itemId: swc25.id, orderedKg: 800 }] });
-  const po3 = await createPo({ poNo: "PO-2627-0103", supplierId: (await supplier("JSW Wire")).id, poDate: daysAgo(12), lines: [{ itemId: swa22.id, orderedKg: 1000 }] });
-  await createPo({ poNo: "PO-2627-0104", supplierId: (await supplier("Sundram Wire")).id, poDate: daysAgo(3), lines: [{ itemId: swc25.id, orderedKg: 600 }] });
+  const po1 = await historicPo({ poNo: "PO-2627-0101", supplierId: (await supplier("Tata Steel Wire")).id, lines: [{ itemId: swb20.id, orderedKg: 1500 }, { itemId: hc16.id, orderedKg: 1200 }] }, daysAgo(210));
+  const po2 = await historicPo({ poNo: "PO-2627-0102", supplierId: (await supplier("Bekaert India")).id, lines: [{ itemId: swc40.id, orderedKg: 2000 }, { itemId: swc25.id, orderedKg: 800 }] }, daysAgo(205));
+  const po3 = await historicPo({ poNo: "PO-2627-0103", supplierId: (await supplier("JSW Wire")).id, lines: [{ itemId: swa22.id, orderedKg: 1000 }] }, daysAgo(12));
+  await historicPo({ poNo: "PO-2627-0104", supplierId: (await supplier("Sundram Wire")).id, lines: [{ itemId: swc25.id, orderedKg: 600 }] }, daysAgo(3));
   step("4 POs (one still fully open)");
 
   // ------------------------------------------------------------------ GRN + IQC (4.1–4.3)
@@ -185,7 +190,7 @@ async function main() {
 
   const { lot: l1 } = await issue(m1.id);
   const l1Link = await prisma.lotBundleLink.findFirstOrThrow({ where: { lotId: l1.id } });
-  await returnToStores({ bundleId: l1Link.bundleId, lotId: l1.id, kg: 3.2, userId: storekeeper.id }); // 4.5 return to stores
+  await returnToStores({ bundleId: l1Link.bundleId, lotId: l1.id, kg: 3.2, reasonCodeId: await reason("RTN-EXCESS"), userId: storekeeper.id }); // 4.5 return to stores
   const { lot: l2 } = await issue(m2.id, 120); // partial issue -> MRN Partially Issued
   const { lot: l3 } = await issue(m3.id);
   const { lot: l5 } = await issue(m5.id);
@@ -196,9 +201,14 @@ async function main() {
   // ------------------------------------------------------------------ Production + job work (4.6–4.7)
   console.log("Production and job work");
   const lotNow = async (id: string) => prisma.productionLot.findUniqueOrThrow({ where: { id }, include: { part: { include: { bomLines: true } } } });
+  // Completes the lot's current operation in one entry: `good` pieces (capped to what is pending), the rest of the
+  // pending quantity is recorded as rejected (at least `rej`), so good + rejected = the operation's planned quantity.
   const op = async (lotId: string, good: number, rej: number, why = "WIP-COIL") => {
     const l = await lotNow(lotId);
-    return recordOperationEntry({ lotId, opSeq: l.currentOpSeq, goodNos: good, rejectedNos: rej, reasonCodeId: rej ? await reason(why) : undefined, userId: supervisor.id });
+    const { pending } = await operationProgress(prisma, l);
+    const g = Math.max(0, Math.min(good, pending - Math.min(rej, pending)));
+    const r = pending - g;
+    return recordOperationEntry({ lotId, opSeq: l.currentOpSeq, goodNos: g, rejectedNos: r, reasonCodeId: r ? await reason(why) : undefined, userId: supervisor.id });
   };
   const send = async (lotId: string) => {
     const l = await lotNow(lotId);
@@ -209,10 +219,14 @@ async function main() {
       userId: clerk.id,
     });
   };
+  // `good` is capped to what is still pending on the line; a negative `good` means "everything except |good| pieces".
   const receive = async (challanId: string, good: number, rej = 0, short = 0, why = "JW-DAMAGE") => {
     const line = await prisma.jwChallanLine.findFirstOrThrow({ where: { challanId } });
-    return createJwInReceipt({ challanId, lines: [{ challanLineId: line.id, receivedNos: good, rejectedNos: rej, shortNos: short, reasonCodeId: rej ? await reason(why) : undefined }], userId: storekeeper.id });
+    const pending = line.qtyNos - line.receivedNos - line.rejectedNos - line.shortNos;
+    const g = good < 0 ? pending + good - rej - short : Math.min(good, pending - rej - short);
+    return createJwInReceipt({ challanId, lines: [{ challanLineId: line.id, receivedNos: g, rejectedNos: rej, shortNos: short, reasonCodeId: rej ? await reason(why) : undefined }], userId: storekeeper.id });
   };
+  const lotQty = async (lotId: string) => (await lotNow(lotId)).qtyNos;
   const qcAccept = async (lotId: string, rej = 0, why = "JW-PLATE") => {
     const l = await lotNow(lotId);
     return jwReturnQcDecision({ lotId, acceptedNos: l.qtyNos - rej, rejectedNos: rej, reasonCodeId: rej ? await reason(why) : undefined, userId: qc.id });
@@ -227,9 +241,11 @@ async function main() {
   // L2 MTC-SPR-401: coiled -> heat treatment -> 50 lost at vendor, Admin closed with shortage -> back in-house at grinding
   await op(l2.id, 1950, 30, "WIP-CRACK");
   const c2 = await send(l2.id);
-  await receive(c2.id, 1900);
+  await receive(c2.id, -50); // all but 50, which the vendor lost
   await closeChallanWithShortage({ challanId: c2.id, reason: "50 pcs lost in transit; vendor issued shortage note", adminId: pAdmin.id });
-  await qcAccept(l2.id, 10, "WIP-CRACK");
+  // The pieces that came back went to JW Return QC as their own lot (partial return); QC passes them back in-house.
+  const l2back = await prisma.productionLot.findFirstOrThrow({ where: { parentLotId: l2.id } });
+  await qcAccept(l2back.id, 10, "WIP-CRACK");
   await backdateChallan(c2.id, 14, 9);
   // L3 AL-SPR-102: coiled -> at heat treatment, partly received, now overdue
   await op(l3.id, 4100, 40, "WIP-COIL");
@@ -245,7 +261,7 @@ async function main() {
   const c5b = await send(l5.id);
   await receive(c5b.id, 300);
   await qcAccept(l5.id);
-  await recordFinalInspection({ lotId: l5.id, acceptedNos: 296, rejectedNos: 4, reasonCodeId: await reason("FQI-LOAD"), results: "Load at 50 mm: 4 pcs below spec; free length OK", userId: qc.id });
+  await recordFinalInspection({ lotId: l5.id, acceptedNos: (await lotQty(l5.id)) - 4, rejectedNos: 4, reasonCodeId: await reason("FQI-LOAD"), results: "Load at 50 mm: 4 pcs below spec; free length OK", userId: qc.id });
   // L6 AL-SPR-102: full routing, FQI approved -> FG lot
   await op(l6.id, 2050, 20, "WIP-COIL");
   const c6a = await send(l6.id);
@@ -255,7 +271,7 @@ async function main() {
   const c6b = await send(l6.id);
   await receive(c6b.id, 2040);
   await qcAccept(l6.id, 5, "JW-PLATE");
-  const fqi6 = await recordFinalInspection({ lotId: l6.id, acceptedNos: 2025, rejectedNos: 10, reasonCodeId: await reason("FQI-DIM"), results: "Visual OK; 10 pcs outer dia over-size", userId: qc.id });
+  const fqi6 = await recordFinalInspection({ lotId: l6.id, acceptedNos: (await lotQty(l6.id)) - 10, rejectedNos: 10, reasonCodeId: await reason("FQI-DIM"), results: "Visual OK; 10 pcs outer dia over-size", userId: qc.id });
   const fg6 = await approveRecordedFinalInspection({ fqiId: fqi6.id, approverId: qAdmin.id });
   for (const [id, d] of [[c5a.id, 18], [c5b.id, 8], [c6a.id, 30], [c6b.id, 20]] as const) {
     const c = await prisma.jwOutChallan.findUniqueOrThrow({ where: { id } });

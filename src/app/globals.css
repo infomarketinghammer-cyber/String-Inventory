@@ -73,12 +73,44 @@ body {
   color: var(--fg);
 }
 
+/*
+ * Fixed application frame: on screens with the app shell the window itself never scrolls or "bounces".
+ * Only the content area (and the sidebar, when its menu is long) scrolls, and reaching its end does not
+ * pull the whole page (no scroll chaining / elastic overscroll). Login and other pages are unaffected.
+ */
+html:has(.app-shell),
+body:has(.app-shell) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.app-shell {
+  height: 100vh;
+  height: 100dvh; /* exact visible height, also on tablets where the browser bar shows/hides */
+}
+.app-shell main,
+.app-shell nav {
+  overscroll-behavior: contain;
+}
+
 /* ---------- surfaces ---------- */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   box-shadow: var(--shadow);
+}
+/* clickable dashboard KPI cards */
+.kpi-card {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.kpi-card:hover {
+  box-shadow: 0 6px 18px rgba(14, 90, 51, 0.14);
+  transform: translateY(-1px);
+}
+.kpi-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* page titles inside <main> */
@@ -228,4 +260,5 @@ main button.underline:hover {
   .no-print { display: none !important; }
   /* print the page content only, without the fixed app shell scroll container */
   .app-shell, .app-main { display: block !important; height: auto !important; overflow: visible !important; }
+  html:has(.app-shell), body:has(.app-shell) { height: auto !important; overflow: visible !important; }
 }

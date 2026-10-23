@@ -1,7 +1,16 @@
 import type { ReportTable } from "@/server/services/reports";
 
 /** Download links for the current report + filters. */
-export function ExportLinks({ report, params }: { report: string; params: Record<string, string | undefined> }) {
+export function ExportLinks({
+  report,
+  params,
+  csv,
+}: {
+  report: string;
+  params: Record<string, string | undefined>;
+  /** Also offer a CSV download. */
+  csv?: boolean;
+}) {
   const qs = (format: string) => {
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v) sp.set(k, v);
@@ -13,6 +22,11 @@ export function ExportLinks({ report, params }: { report: string; params: Record
       <a href={qs("xlsx")} className="underline">
         Export Excel
       </a>
+      {csv && (
+        <a href={qs("csv")} className="underline">
+          Export CSV
+        </a>
+      )}
       <a href={qs("pdf")} className="underline">
         Export PDF
       </a>

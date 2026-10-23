@@ -1,12 +1,13 @@
 "use server";
 
+import { toUserError } from "@/server/userError";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
 import { prisma } from "@/lib/prisma";
 import { createGrn } from "@/server/services/grn";
 import { createPo } from "@/server/services/po";
-import { saveReceipt, saveDocument } from "@/server/services/uploads";
+import { saveReceipt, saveDocument, removeDocument } from "@/server/services/uploads";
 import { ValidationError } from "@/server/services/errors";
 
 const go = (kind: "ok" | "err", msg: string): never => redirect(`/grn?${kind}=${encodeURIComponent(msg)}`);
@@ -19,11 +20,12 @@ const bundleSchema = z.object({
 });
 
 const schema = z.object({
-  poId: z.string().min(1),
-  invoiceNo: z.string().trim().min(1),
-  invoiceDate: z.coerce.date().optional(),
-  vehicleNo: z.string().optional(),
-  bundles: z.array(bundleSchema).min(1),
+  poId: z.string().min(1, "Select the purchase order."),
+  invoiceNo: z.string().trim().min(1, "Enter the supplier invoice no."),
+  // Invoice date and vehicle no. are compulsory on every GRN.
+  invoiceDate: z.coerce.date({ errorMap: () => ({ message: "Enter the invoice date." }) }),
+  vehicleNo: z.string().trim().min(1, "Enter the vehicle no."),
+  bundles: z.array(bundleSchema).min(1, "Add at least one bundle."),
 });
 
 const fileOf = (v: FormDataEntryValue | null): File | null => (v instanceof File ? v : null);
@@ -55,10 +57,14 @@ export async function createGrnAction(formData: FormData) {
     poId: formData.get("poId"),
     invoiceNo: formData.get("invoiceNo"),
     invoiceDate: String(formData.get("invoiceDate") ?? "") || undefined,
-    vehicleNo: String(formData.get("vehicleNo") ?? "") || undefined,
+    vehicleNo: String(formData.get("vehicleNo") ?? ""),
     bundles: rawBundles,
   });
-  if (!parsed.success) go("err", "Please fill in all required fields correctly.");
+  if (!parsed.success) {
+    // Name the first missing field (our own wording, never the raw validator output).
+    const first = parsed.error.issues.find((i) => ["poId", "invoiceNo", "invoiceDate", "vehicleNo"].includes(String(i.path[0])));
+    go("err", first?.message ?? "Every bundle needs a wire item, Heat No. and a weight above zero.");
+  }
 
   try {
     // Store the receipt first so a bad file fails the whole save before any stock is created.
@@ -68,9 +74,9 @@ export async function createGrnAction(formData: FormData) {
       "ok",
       `GRN ${result.grn.grnNo} saved with ${result.bundles.length} bundle(s) in Quality Hold${receipt ? " and the receipt attached" : ""}.`,
     );
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }
 
@@ -81,35 +87,35 @@ export async function attachReceiptAction(formData: FormData) {
   try {
     const grn = await prisma.grn.findUnique({ where: { id: grnId } });
     if (!grn) throw new ValidationError("GRN not found.");
+    // A GRN receipt is uploaded once; after that it can only be viewed.
+    if (grn.receiptPath) throw new ValidationError(`${grn.grnNo} already has its receipt; it can be viewed but not replaced.`);
     const receipt = await saveReceipt(fileOf(formData.get("receipt")));
     if (!receipt) throw new ValidationError("Choose a file to upload.");
-    await prisma.grn.update({ where: { id: grn.id }, data: receipt });
+    // Only attach if still empty, so two uploads at the same moment cannot both win.
+    const { count } = await prisma.grn.updateMany({ where: { id: grn.id, receiptPath: null }, data: receipt });
+    if (count === 0) {
+      await removeDocument(receipt.receiptPath, "grn-receipts");
+      throw new ValidationError(`${grn.grnNo} already has its receipt; it can be viewed but not replaced.`);
+    }
     await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: grn.receiptPath ? "GRN_RECEIPT_REPLACED" : "GRN_RECEIPT_ATTACHED",
-        entity: "Grn",
-        entityId: grn.id,
-        newValue: { name: receipt.receiptName },
-      },
+      data: { userId: user.id, action: "GRN_RECEIPT_ATTACHED", entity: "Grn", entityId: grn.id, newValue: { name: receipt.receiptName } },
     });
-    go("ok", `Receipt attached to ${grn.grnNo}.`);
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+    go("ok", `Receipt uploaded to ${grn.grnNo}.`);
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }
 
 const poSchema = z.object({
   poNo: z.string().trim().min(1),
   supplierId: z.string().min(1), // an existing supplier id, or "__new__" (then newSupplierName is used)
-  poDate: z.coerce.date().optional(),
   lines: z.array(z.object({ itemId: z.string().min(1), orderedKg: z.coerce.number().positive() })).min(1),
 });
 
 /** Record a new PO (with one or more wire lines) so it can be received against. Admin-only (Masters). */
 export async function createPoAction(formData: FormData) {
-  await requireAction("masters.manage");
+  const user = await requireAction("masters.manage");
   const lines: Array<{ itemId: string; orderedKg: number }> = [];
   let i = 0;
   while (formData.has(`lines[${i}][itemId]`)) {
@@ -122,7 +128,6 @@ export async function createPoAction(formData: FormData) {
   const parsed = poSchema.safeParse({
     poNo: formData.get("poNo"),
     supplierId: formData.get("supplierId"),
-    poDate: String(formData.get("poDate") ?? "") || undefined,
     lines,
   });
   if (!parsed.success) go("err", "Enter the PO no., supplier and at least one line with item and ordered kg.");
@@ -136,13 +141,19 @@ export async function createPoAction(formData: FormData) {
       },
       document,
     });
+    if (formData.get("aiConfirmed")) {
+      // Values were pre-filled by AI OCR and confirmed by this user before saving.
+      await prisma.auditLog.create({
+        data: { userId: user.id, action: "PO_CREATED_FROM_AI_OCR", entity: "Po", entityId: po.id, newValue: { poNo: po.poNo } },
+      });
+    }
     go(
       "ok",
       `PO ${po.poNo} added with ${po.lines.length} line(s)${document ? " and its document attached" : ""}. You can now receive against it.`,
     );
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }
 
@@ -153,24 +164,25 @@ export async function attachPoDocumentAction(formData: FormData) {
   try {
     const po = await prisma.po.findUnique({ where: { id: poId } });
     if (!po) throw new ValidationError("PO not found.");
+    // A PO document is uploaded once; after that it can only be viewed.
+    if (po.documentPath) throw new ValidationError(`PO ${po.poNo} already has its document; it can be viewed but not replaced.`);
     const doc = await saveDocument(fileOf(formData.get("document")), "po-documents", "PO document");
     if (!doc) throw new ValidationError("Choose a file to upload.");
-    await prisma.po.update({
-      where: { id: po.id },
+    // Only attach if still empty, so two uploads at the same moment cannot both win.
+    const { count } = await prisma.po.updateMany({
+      where: { id: po.id, documentPath: null },
       data: { documentPath: doc.path, documentName: doc.name, documentMime: doc.mime },
     });
+    if (count === 0) {
+      await removeDocument(doc.path, "po-documents");
+      throw new ValidationError(`PO ${po.poNo} already has its document; it can be viewed but not replaced.`);
+    }
     await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: po.documentPath ? "PO_DOCUMENT_REPLACED" : "PO_DOCUMENT_ATTACHED",
-        entity: "Po",
-        entityId: po.id,
-        newValue: { name: doc.name },
-      },
+      data: { userId: user.id, action: "PO_DOCUMENT_ATTACHED", entity: "Po", entityId: po.id, newValue: { name: doc.name } },
     });
-    go("ok", `Document attached to PO ${po.poNo}.`);
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+    go("ok", `Document uploaded to PO ${po.poNo}.`);
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }

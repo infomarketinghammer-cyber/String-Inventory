@@ -1,10 +1,10 @@
 "use server";
 
+import { toUserError } from "@/server/userError";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
 import { recordFinalInspection, approveRecordedFinalInspection } from "@/server/services/finalInspection";
-import { ValidationError } from "@/server/services/errors";
 
 const go = (kind: "ok" | "err", msg: string): never => redirect(`/final-inspection?${kind}=${encodeURIComponent(msg)}`);
 
@@ -30,9 +30,9 @@ export async function recordFinalInspectionAction(formData: FormData) {
   try {
     const fqi = await recordFinalInspection({ ...parsed.data!, userId: user.id });
     go("ok", `${fqi.fqiNo} recorded. Awaiting Quality Admin approval.`);
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }
 
@@ -43,8 +43,8 @@ export async function approveFinalInspectionAction(formData: FormData) {
   try {
     const fgLot = await approveRecordedFinalInspection({ fqiId, approverId: user.id });
     go("ok", fgLot ? `Approved. FG Lot ${fgLot.fgLotNo} created with ${fgLot.qtyNos} nos.` : "Approved (all rejected; no FG Lot).");
-  } catch (e) {
-    if (e instanceof ValidationError) go("err", e.message);
-    throw e;
+  } catch (err) {
+    const e = toUserError(err);
+    go("err", e.message);
   }
 }
