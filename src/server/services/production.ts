@@ -154,6 +154,10 @@ export async function recordOperationEntry(params: {
       if (!reason || !reason.active) throw new ValidationError("Select a valid rejection reason.");
     }
 
+    // Touch the lot first: two entries saved at the same moment then write the same document, so MongoDB aborts
+    // one and it is retried against the updated totals (it can never push the operation past its plan).
+    await tx.productionLot.update({ where: { id: lot.id }, data: { rev: { increment: 1 } } });
+
     // Validation #6: good + rejected of this entry <= what is still pending at this operation.
     const progress = await operationProgress(tx, lot);
     if (progress.planned <= 0) {
@@ -175,7 +179,7 @@ export async function recordOperationEntry(params: {
         rejectedNos: params.rejectedNos,
         reasonCodeId: params.rejectedNos > 0 ? params.reasonCodeId : null,
         enteredById: params.userId,
-        clientToken: params.clientToken || null,
+        clientToken: params.clientToken || undefined, // none sent: the schema generates a unique one
       },
     });
 
@@ -237,7 +241,7 @@ export async function recordOperationEntry(params: {
       },
     });
     return { lot: updated, completed: true, pending: 0, duplicate: false };
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 /**
@@ -289,7 +293,7 @@ export async function skipJobWork(params: { lotId: string; opSeq: number; reason
       },
     });
     return { lotNo: lot.lotNo, skipped: op.opName, next: nextOp ? `op ${next} ${nextOp.opName}` : "Final Inspection" };
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 /** Lots whose next routing op is Job Work, ready to send (Section 4.6 "Pending-to-send-for-JW"). */

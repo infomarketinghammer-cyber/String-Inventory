@@ -64,7 +64,7 @@ export async function recordFinalInspection(params: FqiInput & { userId: string 
         enteredById: params.userId,
       },
     });
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 /** Step 2 — Quality Admin approves a recorded inspection: FG Lot created, rejects to Rejected – FG. */
@@ -86,7 +86,7 @@ export async function approveRecordedFinalInspection(params: { fqiId: string; ap
       data: { approvedById: params.approverId, approvedAt: new Date(), fgLotNo: fgLot?.fgLotNo ?? null },
     });
     return fgLot;
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 /**

@@ -8,20 +8,22 @@ traceability explorer — per the SOP specification (v1.0, 13 Oct 2026).
 
 ## Deviations from the original prompt
 
-**Database: SQLite (a local file) via Prisma.** The original brief asked for
-"Mongo"; the first build used PostgreSQL. This build stores all data in a
-single local SQLite file (`prisma/dev.db`) so the app runs on any machine with
-Node and nothing else — no database server, no Docker. It keeps the same
-relational guarantees the design needs: every stock movement runs in one
-transaction together with its ledger row, and SQLite serializes write
-transactions, so two concurrent issues can never double-consume a bundle (the
-old `SELECT ... FOR UPDATE` lock is no longer needed). The previous PostgreSQL
-schema and migration are kept in `prisma/postgres-backup/` for reference.
+**Database: MongoDB (Atlas) via Prisma.** Since 23 Oct 2026 all data lives in the MongoDB database in
+`DATABASE_URL` (database `spring_inventory`). Earlier builds used PostgreSQL and then a local SQLite file; the
+SQLite data was copied across with `npm run db:copy-from-sqlite` (same ids, numbers and dates; every collection
+and stock total compared), and the old file is kept in `prisma/backups/` and `prisma/dev.db`. Prisma's MongoDB
+specifics are handled in one place, `src/lib/prisma.ts`:
+- every stock movement still runs in one transaction with its ledger row. MongoDB has no isolation levels;
+  two transactions writing the same document (a bundle, a challan line, a lot, the document-number counter)
+  conflict, and the losing one is retried from the start, re-validating balances and FIFO, so two concurrent
+  issues can never double-consume a bundle;
+- optional fields are always stored (as null when empty), so "is empty" filters behave as before.
+The previous schemas are kept in `prisma/sqlite/` (read-only, used by the copy) and `prisma/postgres-backup/`.
 
 ## Tech stack
 
 TypeScript (strict, no `any`) end to end · Next.js 15 App Router, React 19 ·
-SQLite + Prisma ORM · Auth.js (NextAuth v5) Credentials provider +
+MongoDB + Prisma ORM · Auth.js (NextAuth v5) Credentials provider +
 argon2 · Zod validation on every server action/route · Tailwind CSS ·
 React Hook Form (FIFO scan screen) · `qrcode` for bundle tag QR codes ·
 `exceljs` / `pdf-lib` for report export · Vitest (unit) + Playwright (e2e).
@@ -29,19 +31,19 @@ React Hook Form (FIFO scan screen) · `qrcode` for bundle tag QR codes ·
 ## Running it
 
 ```bash
-cp .env.example .env            # edit AUTH_SECRET for anything beyond local use
+cp .env.example .env            # set DATABASE_URL (MongoDB, with the database name) and AUTH_SECRET
 npm install
-npx prisma db push              # creates prisma/dev.db from the schema
-npm run db:seed                 # demo data (reproduces the SOP section 7 worked example)
-npm run db:demo                 # optional: rich client-demo data on top of the seed
+npx prisma db push              # creates the collections and indexes from the schema
+npm run db:seed                 # only for a NEW, empty database: demo data (SOP section 7 worked example)
+npm run db:demo                 # optional, new database only: rich client-demo data on top of the seed
 npm run db:verify               # ledger reconciliation (must print "OK")
 npm run dev                     # http://localhost:3000
 ```
 
-Or with Docker (single container, data on a persistent volume):
+Or with Docker (single container; MongoDB via DATABASE_URL, uploads on a persistent volume):
 `docker compose up --build`.
 
-To start over with fresh demo data: `npx prisma db push --force-reset && npm run db:seed && npm run db:demo`.
+`npx prisma db push --force-reset` **deletes every record** in the database it points at; only use it on a test database.
 ## Demo credentials
 
 All seeded users share the password `Demo@1234` — **change this before any
@@ -129,9 +131,9 @@ the rules, including the negative cases. What to know:
 - **Immutability / reversal**: `src/server/services/adjustment.ts`
   (`reverseTransaction`) — never edits/deletes, always a new signed row;
   refuses if it would cause negative stock.
-- **Concurrency safety**: every stock-moving service runs in a
-  `Serializable` transaction (SQLite serializes writers), re-validating balances and FIFO
-  inside the transaction before writing the balance and ledger rows together.
+- **Concurrency safety**: every stock-moving service runs in one MongoDB transaction,
+  re-validating balances and FIFO inside it before writing the balance and ledger rows together;
+  conflicting concurrent transactions are aborted by MongoDB and retried (`src/lib/prisma.ts`).
 - **System-generated doc numbers**: `src/server/services/docNumber.ts`,
   atomic per-period `upsert` + `increment` inside the same transaction.
 - **State machine, not free text**: all statuses/locations are Prisma enums
@@ -153,12 +155,14 @@ npm run test:e2e      # Playwright specs (need the app running)
 ```
 
 `db:scenario`, `db:receipt-check` and `db:sop-check` write test data, so they only run when
-`DATABASE_URL` is set explicitly to a scratch database. They refuse to start against `dev.db` or when
-the variable comes only from `.env` (see `prisma/scratch-guard.ts`):
+`DATABASE_URL` is set explicitly to a scratch database: a MongoDB database whose name ends in `_test`
+(e.g. `spring_inventory_test` on the same cluster). They refuse to start otherwise, including when the
+variable comes only from `.env` (see `prisma/scratch-guard.ts`):
 
 ```powershell
-$env:DATABASE_URL="file:./scenario.db"
-npx prisma db push --force-reset --skip-generate
+# same connection string as .env DATABASE_URL, but database spring_inventory_test
+$env:DATABASE_URL = ((Get-Content .env | Select-String '^DATABASE_URL="(.+)"').Matches[0].Groups[1].Value).Replace('/spring_inventory?', '/spring_inventory_test?')
+npx prisma db push --force-reset --skip-generate   # wipes the TEST database only
 npm run db:seed
 npm run db:scenario; npm run db:receipt-check; npm run db:sop-check; npm run db:verify
 Remove-Item Env:DATABASE_URL   # back to the working database

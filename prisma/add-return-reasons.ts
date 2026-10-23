@@ -2,9 +2,9 @@
  * One-off, idempotent: adds the "Return" stage reason codes (why wire comes back to stores) to an
  * existing database. New databases get them from the seed. `npx tsx prisma/add-return-reasons.ts`
  */
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 const CODES = [
   ["RTN-EXCESS", "Return", "Excess wire issued / not needed"],

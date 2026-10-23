@@ -157,5 +157,5 @@ export async function approveIqc(params: { iqcId: string; approverId: string }) 
     }
 
     return tx.iqc.findUnique({ where: { id: iqc.id }, include: { bundle: true } });
-  }, { isolationLevel: "Serializable" });
+  });
 }

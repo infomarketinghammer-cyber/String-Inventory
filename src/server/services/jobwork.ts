@@ -213,7 +213,7 @@ export async function createJwOutChallan(params: {
     }
 
     return challan;
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 export interface JwReceiveLine {
@@ -297,7 +297,7 @@ export async function createJwInReceipt(params: {
         createdById: params.userId,
         vendorDcNo: params.vendorDcNo?.trim() || null,
         remarks: params.remarks?.trim() || null,
-        clientToken: params.clientToken || null,
+        clientToken: params.clientToken || undefined, // none sent: the schema generates a unique one
       },
     });
 
@@ -417,7 +417,7 @@ export async function createJwInReceipt(params: {
     });
 
     return Object.assign(receipt, { duplicate: false });
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 type JwTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
@@ -561,7 +561,7 @@ export async function jwReturnQcDecision(params: {
         remarks: params.remarks?.trim() || null,
         acceptedLotId,
         inspectedById: params.userId,
-        clientToken: params.clientToken || null,
+        clientToken: params.clientToken || undefined, // none sent: the schema generates a unique one
       },
     });
     if (params.rejectedNos > 0) {
@@ -595,7 +595,7 @@ export async function jwReturnQcDecision(params: {
     }
     const after = await tx.productionLot.findUniqueOrThrow({ where: { id: lot.id } });
     return Object.assign(after, { duplicate: false, pendingQc: complete ? 0 : lot.qtyNos - inspected, acceptedLotId });
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 /**
@@ -629,5 +629,5 @@ export async function closeChallanWithShortage(params: { challanId: string; reas
       },
     });
     return closed;
-  }, { isolationLevel: "Serializable" });
+  });
 }

@@ -109,7 +109,7 @@ export async function createDispatch(params: {
     });
 
     return dispatch;
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 /** T16 — customer return received into Rejected-FG (Section 4.10, 10.Q10). */
@@ -173,5 +173,5 @@ export async function createCustomerReturn(params: {
         createdById: params.userId,
       },
     });
-  }, { isolationLevel: "Serializable" });
+  });
 }

@@ -17,11 +17,11 @@
  * transactional entity (see README "Known limitations") rather than 25+, to
  * keep every balance hand-reconcilable and correct.
  */
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma";
 import argon2 from "argon2";
 import { randomUUID } from "crypto";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 const LOCATIONS = [
   { name: "Incoming/QC area", type: "QC" as const },

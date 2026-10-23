@@ -49,7 +49,8 @@ export async function writeLedger(tx: Tx, entry: LedgerEntryInput) {
       toLocationId: entry.toLocationId ?? null,
       fromStatus: entry.fromStatus ?? null,
       toStatus: entry.toStatus ?? null,
-      qty: typeof entry.qty === "number" ? entry.qty : entry.qty.toString(),
+      // Stored as a number (MongoDB); rounded so kg sums never drift (e.g. 18.950000000000017).
+      qty: Math.round(Number(typeof entry.qty === "number" ? entry.qty : entry.qty.toString()) * 1e6) / 1e6,
       uom: entry.uom,
       userId: entry.userId,
       reason: entry.reason ?? null,

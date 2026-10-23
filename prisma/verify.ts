@@ -10,9 +10,9 @@
  * from StockLedger rows (the single source of truth) and compares against
  * the denormalized balance columns used for fast reads.
  */
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 interface Failure {
   entity: string;

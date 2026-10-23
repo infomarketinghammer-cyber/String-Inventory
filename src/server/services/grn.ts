@@ -159,5 +159,5 @@ export async function createGrn(input: CreateGrnInput) {
     }
 
     return { grn, bundles: createdBundles };
-  }, { isolationLevel: "Serializable" });
+  });
 }

@@ -12,10 +12,10 @@
  *  - The lot at the vendor keeps only what is still outstanding. An audit record is written for each batch.
  * Lots already in JW Return QC from before batch tracking are linked to their receipt when it is unambiguous.
  */
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma";
 import { genLotNo } from "../src/server/services/docNumber";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const APPLY = process.argv.includes("--apply");
 
 async function main() {

@@ -208,7 +208,7 @@ export async function createIssue(params: {
     await recomputeMrnStatus(tx, mrn.id);
 
     return { issue, lot };
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 /**
@@ -277,5 +277,5 @@ export async function returnToStores(params: {
       await tx.productionLot.update({ where: { id: lot.id }, data: { status: "CLOSED", qtyNos: 0 } });
     }
     await recomputeMrnStatus(tx, lot.mrnId);
-  }, { isolationLevel: "Serializable" });
+  });
 }

@@ -25,6 +25,7 @@ COPY --from=build /app/src ./src
 
 RUN mkdir -p /data
 EXPOSE 3000
-# SQLite file lives on the /data volume. `db push` creates/updates the tables from schema.prisma,
-# the seed is idempotent, and db:verify fails the container loudly if any balance doesn't reconcile.
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run db:seed && npm run db:verify && npm start"]
+# Data lives in MongoDB (DATABASE_URL); uploaded files on the /data volume. `db push` keeps the collections'
+# indexes in line with schema.prisma, and db:verify fails the container loudly if any balance doesn't reconcile.
+# (No automatic seed: the database already holds the plant's data. Seed a new empty database once by hand.)
+CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run db:verify && npm start"]

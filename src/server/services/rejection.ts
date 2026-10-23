@@ -176,7 +176,7 @@ export async function disposeRejection(params: {
       where: { id: rej.id },
       data: { disposal: params.disposal, approvedById: params.adminId },
     });
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 type RefTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];

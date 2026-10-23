@@ -55,7 +55,7 @@ export async function adjustBundleStock(params: {
         newValue: { balanceKg: newBalance, status, reason: params.reason },
       },
     });
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 const REVERSIBLE = new Set(["T1_GRN", "T5_ISSUE", "T15_DISPATCH", "T17_ADJUSTMENT"]);
@@ -177,7 +177,7 @@ export async function reverseTransaction(params: { ledgerId: string; reason: str
     });
 
     return reversal;
-  }, { isolationLevel: "Serializable" });
+  });
 }
 
 type RevTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];

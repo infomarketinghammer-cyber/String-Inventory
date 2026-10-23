@@ -1,0 +1,653 @@
+// Spring Manufacturing Inventory Module - Prisma schema
+// Postgres chosen instead of Mongo (see README "Deviations from prompt")
+
+// Read-only copy of the pre-MongoDB SQLite schema, used only by prisma/copy-sqlite-to-mongo.ts.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma-sqlite/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("SQLITE_URL")
+}
+
+// ---------- Enums (state machine, Section 5) ----------
+
+enum Role {
+  ADMIN
+  FLOOR
+}
+
+enum BundleStatus {
+  QUALITY_HOLD
+  AVAILABLE
+  REJECTED
+  CONSUMED // balance 0, fully closed
+}
+
+enum LotStatus {
+  IN_HOUSE
+  AT_JOB_WORK
+  JW_RETURN_QC
+  REJECTED
+  CLOSED
+}
+
+enum FgLotStatus {
+  AVAILABLE
+  CONSUMED
+  REJECTED
+}
+
+enum LocationType {
+  QC
+  STORES
+  WIP
+  JW_VENDOR
+  REJECTION
+  FG
+  VIRTUAL
+}
+
+enum MrnStatus {
+  OPEN
+  PARTIALLY_ISSUED
+  CLOSED
+}
+
+enum OpType {
+  IN_HOUSE
+  JOB_WORK
+}
+
+enum ChallanStatus {
+  OPEN
+  PARTIALLY_RECEIVED
+  OVERDUE
+  CLOSED
+}
+
+enum RejectionStage {
+  IQC
+  WIP
+  JW_RETURN
+  FQI
+  CUSTOMER_RETURN
+}
+
+enum DisposalType {
+  PENDING
+  RTS
+  REWORK
+  SCRAP
+  DEVIATION // IQC rejection accepted under deviation (SOP 4.10)
+}
+
+enum TxnType {
+  T1_GRN
+  T2_IQC_ACCEPT
+  T3_IQC_REJECT
+  T4_RTS
+  T5_ISSUE
+  T6_RETURN_TO_STORES
+  T7_OP_COMPLETE
+  T8_JW_SEND
+  T9_JW_RECEIVE
+  T10_JW_RETURN_QC
+  T11_FINAL_INSPECTION
+  T12_REJECTION
+  T13_REWORK
+  T14_SCRAP
+  T15_DISPATCH
+  T16_CUSTOMER_RETURN
+  T17_ADJUSTMENT
+}
+
+enum ItemType {
+  RM
+  WIP
+  FG
+}
+
+// ---------- Users / Auth ----------
+
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String
+  role                Role
+  passwordHash        String
+  active              Boolean   @default(true)
+  forcePasswordChange Boolean   @default(false)
+  failedLoginCount    Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  auditLogs          AuditLog[]
+  stockLedgerEntries StockLedger[]
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String?
+  entityId  String?
+  oldValue  Json?
+  newValue  Json?
+  success   Boolean  @default(true)
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// ---------- Masters ----------
+
+model Item {
+  id             String  @id @default(cuid())
+  itemCode       String  @unique
+  grade          String
+  diameterMm     Decimal
+  uom            String  @default("kg")
+  agingAlertDays Int     @default(30)
+  active         Boolean @default(true)
+
+  bundles  Bundle[]
+  bomLines BomLine[]
+  poLines  PoLine[]
+
+  @@index([grade, diameterMm])
+}
+
+model Customer {
+  id         String             @id @default(cuid())
+  name       String
+  gstin      String?
+  active     Boolean            @default(true)
+  parts      Part[]
+  schedules  CustomerSchedule[]
+  dispatches Dispatch[]
+}
+
+model Part {
+  id                String   @id @default(cuid())
+  partNo            String   @unique
+  customerId        String
+  customer          Customer @relation(fields: [customerId], references: [id])
+  description       String
+  netWtPerPcKg      Decimal
+  scrapAllowancePct Decimal  @default(0)
+  active            Boolean  @default(true)
+
+  bomLines       BomLine[]
+  mrns           Mrn[]
+  productionLots ProductionLot[]
+  fgLots         FgLot[]
+  schedules      CustomerSchedule[]
+}
+
+model BomLine {
+  id              String     @id @default(cuid())
+  partId          String
+  part            Part       @relation(fields: [partId], references: [id])
+  opSeq           Int
+  opName          String
+  opType          OpType
+  itemId          String?
+  item            Item?      @relation(fields: [itemId], references: [id])
+  defaultVendorId String?
+  defaultVendor   JobWorker? @relation(fields: [defaultVendorId], references: [id])
+  jwLeadDays      Int?
+
+  @@unique([partId, opSeq])
+}
+
+model Supplier {
+  id     String  @id @default(cuid())
+  name   String
+  gstin  String?
+  active Boolean @default(true)
+  pos    Po[]
+}
+
+model JobWorker {
+  id            String  @id @default(cuid())
+  name          String
+  address       String?
+  gstin         String?
+  maxReturnDays Int     @default(10)
+  active        Boolean @default(true)
+
+  bomLines   BomLine[]
+  challans   JwOutChallan[]
+  locationId String?        @unique
+  location   Location?      @relation(fields: [locationId], references: [id])
+}
+
+model Location {
+  id   String       @id @default(cuid())
+  name String       @unique
+  type LocationType
+
+  bundles        Bundle[]
+  productionLots ProductionLot[]
+  jobWorker      JobWorker?
+}
+
+model ReasonCode {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  stage       String // IQC/WIP/JW/FQI/Customer/Adjustment
+  description String
+  active      Boolean @default(true)
+}
+
+model AdminSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+// ---------- Document sequence (system-generated, per FY) ----------
+
+model DocSequence {
+  id         String @id @default(cuid())
+  docType    String // GRN, MRN, PL, FG, RM, DISPATCH, etc
+  fiscalYear String // e.g. "2627"
+  lastNumber Int    @default(0)
+
+  @@unique([docType, fiscalYear])
+}
+
+// ---------- PO / GRN / Bundle / IQC ----------
+
+model Po {
+  id           String   @id @default(cuid())
+  poNo         String   @unique
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  poDate       DateTime @default(now())
+  // Scanned PO document, stored on disk (see src/server/services/uploads.ts)
+  documentPath String?
+  documentName String?
+  documentMime String?
+  lines        PoLine[]
+  grns         Grn[]
+}
+
+model PoLine {
+  id         String  @id @default(cuid())
+  poId       String
+  po         Po      @relation(fields: [poId], references: [id])
+  itemId     String
+  item       Item    @relation(fields: [itemId], references: [id])
+  orderedKg  Decimal
+  receivedKg Decimal @default(0)
+}
+
+model Grn {
+  id          String    @id @default(cuid())
+  grnNo       String    @unique
+  grnDate     DateTime  @default(now())
+  poId        String
+  po          Po        @relation(fields: [poId], references: [id])
+  invoiceNo   String
+  invoiceDate DateTime?
+  vehicleNo   String?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  // Scanned supplier invoice / delivery receipt, stored on disk (see src/server/services/uploads.ts)
+  receiptPath String?
+  receiptName String?
+  receiptMime String?
+
+  bundles Bundle[]
+}
+
+model Bundle {
+  id           String       @id @default(cuid())
+  bundleNo     String       @unique // RM-YYMM-####
+  grnId        String
+  grn          Grn          @relation(fields: [grnId], references: [id])
+  itemId       String
+  item         Item         @relation(fields: [itemId], references: [id])
+  heatNo       String
+  tcRef        String?
+  receivedKg   Decimal
+  balanceKg    Decimal
+  inwardDate   DateTime
+  status       BundleStatus @default(QUALITY_HOLD)
+  locationId   String
+  location     Location     @relation(fields: [locationId], references: [id])
+  // First bundle-tag print (SOP 4.3). Floor users may print once; reprints are Admin-only.
+  tagPrintedAt DateTime?
+
+  iqc        Iqc?
+  issueLines IssueLine[]
+  lotLinks   LotBundleLink[]
+
+  @@index([status, locationId, inwardDate])
+  @@index([itemId, status])
+}
+
+model Iqc {
+  id           String    @id @default(cuid())
+  iqcNo        String    @unique
+  bundleId     String    @unique
+  bundle       Bundle    @relation(fields: [bundleId], references: [id])
+  results      Json
+  decision     String // ACCEPT / REJECT / ACCEPT_DEVIATION
+  enteredById  String
+  approvedById String?
+  approvedAt   DateTime?
+  reasonCodeId String?
+  createdAt    DateTime  @default(now())
+}
+
+// ---------- MRN / Issue / Production Lot ----------
+
+model Mrn {
+  id            String    @id @default(cuid())
+  mrnNo         String    @unique
+  partId        String
+  part          Part      @relation(fields: [partId], references: [id])
+  plannedQtyNos Int
+  requiredKg    Decimal
+  status        MrnStatus @default(OPEN)
+  createdById   String
+  createdAt     DateTime  @default(now())
+
+  issues         Issue[]
+  productionLots ProductionLot[]
+}
+
+model Issue {
+  id             String      @id @default(cuid())
+  issueNo        String      @unique
+  mrnId          String
+  mrn            Mrn         @relation(fields: [mrnId], references: [id])
+  issuedById     String
+  createdAt      DateTime    @default(now())
+  overrideReason String?
+  lines          IssueLine[]
+}
+
+model IssueLine {
+  id       String  @id @default(cuid())
+  issueId  String
+  issue    Issue   @relation(fields: [issueId], references: [id])
+  bundleId String
+  bundle   Bundle  @relation(fields: [bundleId], references: [id])
+  kgIssued Decimal
+}
+
+model ProductionLot {
+  id           String    @id @default(cuid())
+  lotNo        String    @unique // PL-YYMM-####
+  partId       String
+  part         Part      @relation(fields: [partId], references: [id])
+  mrnId        String
+  mrn          Mrn       @relation(fields: [mrnId], references: [id])
+  currentOpSeq Int       @default(1)
+  qtyNos       Int       @default(0)
+  status       LotStatus @default(IN_HOUSE)
+  locationId   String
+  location     Location  @relation(fields: [locationId], references: [id])
+  startDate    DateTime  @default(now())
+  // Set when this lot was split off a lot at a job worker for a partial return (SOP 4.7: partial returns go to QC).
+  parentLotId  String?
+  parentLot    ProductionLot?  @relation("LotSplit", fields: [parentLotId], references: [id])
+  splitLots    ProductionLot[] @relation("LotSplit")
+
+  bundleLinks      LotBundleLink[]
+  opEntries        OperationEntry[]
+  jwChallanLines   JwChallanLine[]
+  jwReceiptLines   JwReceiptLine[]
+  fgLots           FgLot[]
+  finalInspections FinalInspection[]
+
+  @@index([status, locationId, startDate])
+}
+
+model LotBundleLink {
+  id         String        @id @default(cuid())
+  lotId      String
+  lot        ProductionLot @relation(fields: [lotId], references: [id])
+  bundleId   String
+  bundle     Bundle        @relation(fields: [bundleId], references: [id])
+  kgConsumed Decimal
+
+  @@index([lotId])
+  @@index([bundleId])
+}
+
+model OperationEntry {
+  id           String        @id @default(cuid())
+  lotId        String
+  lot          ProductionLot @relation(fields: [lotId], references: [id])
+  opSeq        Int
+  date         DateTime      @default(now())
+  goodNos      Int
+  rejectedNos  Int           @default(0)
+  reasonCodeId String?
+  enteredById  String
+  createdAt    DateTime      @default(now())
+  // Job work is optional per lot: production may skip a JW routing step (no JW challan, no stock movement).
+  skipped      Boolean       @default(false)
+  remarks      String?
+  // One-time token from the entry form: a repeated submit (double click) can never save the same entry twice.
+  clientToken  String?       @unique
+
+  @@index([lotId, opSeq])
+}
+
+// ---------- Job Work ----------
+
+model JwOutChallan {
+  id                       String        @id @default(cuid())
+  challanNo                String        @unique
+  vendorId                 String
+  vendor                   JobWorker     @relation(fields: [vendorId], references: [id])
+  vehicleNo                String? // vehicle carrying the material to the job worker
+  date                     DateTime      @default(now())
+  expectedReturnDate       DateTime
+  status                   ChallanStatus @default(OPEN)
+  createdById              String
+  closedWithShortageReason String?
+
+  lines    JwChallanLine[]
+  receipts JwInReceipt[]
+}
+
+model JwChallanLine {
+  id            String          @id @default(cuid())
+  challanId     String
+  challan       JwOutChallan    @relation(fields: [challanId], references: [id])
+  lotId         String
+  lot           ProductionLot   @relation(fields: [lotId], references: [id])
+  opSeq         Int
+  qtyNos        Int
+  qtyKg         Decimal
+  receivedNos   Int             @default(0)
+  rejectedNos   Int             @default(0)
+  shortNos      Int             @default(0)
+  JwReceiptLine JwReceiptLine[]
+}
+
+model JwInReceipt {
+  id          String          @id @default(cuid())
+  receiptNo   String          @unique
+  challanId   String
+  challan     JwOutChallan    @relation(fields: [challanId], references: [id])
+  date        DateTime        @default(now()) // actual receipt date (a return batch)
+  createdById String
+  createdAt   DateTime        @default(now())
+  vendorDcNo  String? // vendor's delivery challan / document no. for this batch
+  remarks     String?
+  // One-time token from the receipt form: the same physical receipt can never be saved twice.
+  clientToken String?         @unique
+  lines       JwReceiptLine[]
+}
+
+model JwReceiptLine {
+  id            String        @id @default(cuid())
+  receiptId     String
+  receipt       JwInReceipt   @relation(fields: [receiptId], references: [id])
+  challanLineId String
+  challanLine   JwChallanLine @relation(fields: [challanLineId], references: [id])
+  lotId         String
+  lot           ProductionLot @relation(fields: [lotId], references: [id])
+  receivedNos   Int
+  rejectedNos   Int           @default(0)
+  shortNos      Int           @default(0)
+  // Partial return: the good pieces of this receipt were split into their own lot, which went to JW Return QC.
+  splitLotId    String?
+  // The lot that holds this batch's good pieces for JW Return QC (the split lot, or the sent lot for the last batch).
+  qcLotId       String?
+  qcEntries     JwQcEntry[]
+}
+
+// One JW Return QC inspection of (part of) a return batch. A batch can be inspected in several entries.
+model JwQcEntry {
+  id            String         @id @default(cuid())
+  receiptLineId String?
+  receiptLine   JwReceiptLine? @relation(fields: [receiptLineId], references: [id])
+  lotId         String // the QC lot inspected
+  acceptedNos   Int
+  rejectedNos   Int
+  reasonCodeId  String?
+  remarks       String?
+  acceptedLotId String? // lot carrying the accepted pieces on to the next operation
+  inspectedById String
+  createdAt     DateTime       @default(now())
+  clientToken   String?        @unique
+
+  @@index([receiptLineId])
+  @@index([lotId])
+}
+
+// ---------- Final inspection / FG / Dispatch ----------
+
+model FgLot {
+  id           String        @id @default(cuid())
+  fgLotNo      String        @unique // FG-YYMM-####
+  partId       String
+  part         Part          @relation(fields: [partId], references: [id])
+  sourceLotId  String
+  sourceLot    ProductionLot @relation(fields: [sourceLotId], references: [id])
+  qtyNos       Int
+  balanceNos   Int
+  inwardDate   DateTime
+  status       FgLotStatus   @default(AVAILABLE)
+  approvedById String
+
+  dispatchLines DispatchLine[]
+
+  @@index([status, partId, inwardDate])
+}
+
+model CustomerSchedule {
+  id            String   @id @default(cuid())
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id])
+  partId        String
+  part          Part     @relation(fields: [partId], references: [id])
+  dueDate       DateTime
+  qtyNos        Int
+  dispatchedNos Int      @default(0)
+
+  dispatchLines DispatchLine[]
+}
+
+model Dispatch {
+  id             String   @id @default(cuid())
+  dispatchNo     String   @unique
+  date           DateTime @default(now())
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id])
+  invoiceNo      String
+  vehicleNo      String?
+  packingDetails String?
+  createdById    String
+
+  lines DispatchLine[]
+}
+
+// SOP 4.8: QC inspector records the final inspection; Quality Admin approves it (only then is the FG Lot created).
+model FinalInspection {
+  id           String        @id @default(cuid())
+  fqiNo        String        @unique
+  lotId        String
+  lot          ProductionLot @relation(fields: [lotId], references: [id])
+  acceptedNos  Int
+  rejectedNos  Int
+  reasonCodeId String?
+  results      String?
+  enteredById  String
+  createdAt    DateTime      @default(now())
+  approvedById String?
+  approvedAt   DateTime?
+  fgLotNo      String?
+
+  @@index([lotId])
+}
+
+model DispatchLine {
+  id         String           @id @default(cuid())
+  dispatchId String
+  dispatch   Dispatch         @relation(fields: [dispatchId], references: [id])
+  scheduleId String
+  schedule   CustomerSchedule @relation(fields: [scheduleId], references: [id])
+  fgLotId    String
+  fgLot      FgLot            @relation(fields: [fgLotId], references: [id])
+  qtyNos     Int
+}
+
+// ---------- Rejections / Disposal ----------
+
+model Rejection {
+  id           String         @id @default(cuid())
+  rejNo        String         @unique
+  stage        RejectionStage
+  refType      String // BUNDLE / LOT / FG_LOT
+  refId        String
+  qty          Decimal
+  uom          String
+  reasonCodeId String
+  disposal     DisposalType   @default(PENDING)
+  approvedById String?
+  createdById  String
+  createdAt    DateTime       @default(now())
+}
+
+// ---------- Stock ledger: single source of truth ----------
+
+model StockLedger {
+  id             String   @id @default(cuid())
+  txnId          String   @unique
+  txnType        TxnType
+  txnDate        DateTime @default(now())
+  docNo          String
+  itemType       ItemType
+  refNo          String // bundle_no / lot_no / fg_lot_no
+  fromLocationId String?
+  toLocationId   String?
+  fromStatus     String?
+  toStatus       String?
+  qty            Decimal
+  uom            String
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  reason         String?
+
+  @@index([txnDate, refNo])
+  @@index([refNo])
+  @@index([docNo])
+}
