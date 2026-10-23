@@ -6,6 +6,7 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { opSlug, type OperationTab } from "@/lib/operations";
 import { ValidationError } from "./errors";
 import { writeLedger } from "./ledger";
 import { genRejectionNo } from "./docNumber";
@@ -294,6 +295,25 @@ export async function skipJobWork(params: { lotId: string; opSeq: number; reason
     });
     return { lotNo: lot.lotNo, skipped: op.opName, next: nextOp ? `op ${next} ${nextOp.opName}` : "Final Inspection" };
   });
+}
+
+/**
+ * The Production tabs: every operation name in the routing masters, in routing order (by its first step
+ * number across parts). A name used as both in-house and job work counts as job work only where the routing says so.
+ */
+export async function operationTabs(): Promise<OperationTab[]> {
+  const steps = await prisma.bomLine.findMany({ select: { opName: true, opSeq: true, opType: true }, orderBy: { opSeq: "asc" } });
+  const tabs = new Map<string, OperationTab & { seq: number }>();
+  for (const s of steps) {
+    const slug = opSlug(s.opName);
+    if (!slug) continue;
+    const t = tabs.get(slug);
+    if (!t) tabs.set(slug, { slug, name: s.opName.trim(), jobWork: s.opType === "JOB_WORK", seq: s.opSeq });
+    else if (s.opType === "JOB_WORK") t.jobWork = true;
+  }
+  return [...tabs.values()]
+    .sort((a, b) => a.seq - b.seq || a.name.localeCompare(b.name))
+    .map((t) => ({ slug: t.slug, name: t.name, jobWork: t.jobWork }));
 }
 
 /** Lots whose next routing op is Job Work, ready to send (Section 4.6 "Pending-to-send-for-JW"). */

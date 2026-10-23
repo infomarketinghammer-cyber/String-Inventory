@@ -1,6 +1,7 @@
 "use server";
 
 import { toUserError } from "@/server/userError";
+import { safeProductionPath } from "@/lib/operations";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAction } from "@/server/auth/session";
@@ -27,7 +28,7 @@ export async function recordOperationAction(formData: FormData) {
     reasonCodeId: formData.get("reasonCodeId") || undefined,
     clientToken: formData.get("clientToken") || undefined,
   });
-  if (!parsed.success) redirect(`/production?err=${encodeURIComponent("Enter whole numbers for good and rejected quantities.")}`);
+  if (!parsed.success) redirect(`${safeProductionPath(formData.get("back"))}?err=${encodeURIComponent("Enter whole numbers for good and rejected quantities.")}`);
   try {
     const r = await recordOperationEntry({ ...parsed.data, userId: user.id });
     const msg = r.duplicate
@@ -35,10 +36,10 @@ export async function recordOperationAction(formData: FormData) {
       : r.completed
         ? `${r.lot.lotNo}: entry saved. Operation complete, the lot moved to the next step.`
         : `${r.lot.lotNo}: entry saved. ${r.pending} nos still pending at this operation.`;
-    redirect(`/production?ok=${encodeURIComponent(msg)}`);
+    redirect(`${safeProductionPath(formData.get("back"))}?ok=${encodeURIComponent(msg)}`);
   } catch (err) {
     const e = toUserError(err);
-    redirect(`/production?err=${encodeURIComponent(e.message)}`);
+    redirect(`${safeProductionPath(formData.get("back"))}?err=${encodeURIComponent(e.message)}`);
   }
 }
 
@@ -49,9 +50,9 @@ export async function skipJobWorkAction(formData: FormData) {
   const opSeq = Number(formData.get("opSeq"));
   try {
     const r = await skipJobWork({ lotId, opSeq, reason: String(formData.get("reason") ?? ""), userId: user.id });
-    redirect(`/production?ok=${encodeURIComponent(`${r.lotNo}: ${r.skipped} skipped (no job work). Lot moved to ${r.next}.`)}`);
+    redirect(`${safeProductionPath(formData.get("back"))}?ok=${encodeURIComponent(`${r.lotNo}: ${r.skipped} skipped (no job work). Lot moved to ${r.next}.`)}`);
   } catch (err) {
     const e = toUserError(err);
-    redirect(`/production?err=${encodeURIComponent(e.message)}`);
+    redirect(`${safeProductionPath(formData.get("back"))}?err=${encodeURIComponent(e.message)}`);
   }
 }

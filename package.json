@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "start:deploy": "prisma db push --skip-generate && tsx prisma/verify.ts && next start",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",

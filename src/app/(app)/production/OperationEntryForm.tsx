@@ -14,6 +14,8 @@ interface Props {
   pending: number;
   /** One per page render: the server ignores a second submit of the same form (double click). */
   clientToken: string;
+  /** Tab to come back to after saving, e.g. /production/grinding. */
+  back?: string;
   reasonCodes: { id: string; code: string }[];
   /** Shown under "Planned" (e.g. where the coiling plan comes from). */
   plannedNote?: string;
@@ -36,7 +38,7 @@ function SaveButton({ disabled }: { disabled: boolean }) {
  * processed quantity, and the lot moves to the next operation only when good + rejected reaches the plan.
  * The same limits are enforced again on the server.
  */
-export function OperationEntryForm({ lotId, opSeq, planned, processed, pending, clientToken, reasonCodes, plannedNote }: Props) {
+export function OperationEntryForm({ lotId, opSeq, planned, processed, pending, clientToken, back, reasonCodes, plannedNote }: Props) {
   const [good, setGood] = useState("");
   const [rejected, setRejected] = useState("");
   const [reasonId, setReasonId] = useState("");
@@ -93,6 +95,7 @@ export function OperationEntryForm({ lotId, opSeq, planned, processed, pending, 
         <input type="hidden" name="lotId" value={lotId} />
         <input type="hidden" name="opSeq" value={opSeq} />
         <input type="hidden" name="clientToken" value={clientToken} />
+        <input type="hidden" name="back" value={back ?? "/production"} />
         <div>
           <label htmlFor={`good-${lotId}`} className={FIELD_LABEL}>
             Good (nos)

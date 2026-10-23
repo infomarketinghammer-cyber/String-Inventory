@@ -71,6 +71,13 @@ async function ledger(data: {
 }
 
 async function main() {
+  // Demo data is only for a NEW, empty database. Never write it into a database that already holds the plant's
+  // records (e.g. a start command on the server that still runs db:seed). Override only with --force-demo.
+  const existing = (await prisma.user.count()) + (await prisma.grn.count());
+  if (existing > 0 && !process.argv.includes("--force-demo")) {
+    console.log("Seed skipped: this database already has data (users / GRNs). Demo data is only loaded into an empty database.");
+    return;
+  }
   console.log("Seeding locations...");
   const locMap = new Map<string, string>();
   for (const l of LOCATIONS) {

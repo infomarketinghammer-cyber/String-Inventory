@@ -7,7 +7,7 @@ import { skipJobWorkAction } from "./actions";
  * At a Job Work routing step: two buttons — send the lot for job work, or skip the step.
  * Skipping asks for a short reason (required, kept on the record) before it is confirmed.
  */
-export function JobWorkChoice({ lotId, opSeq, nextLabel }: { lotId: string; opSeq: number; nextLabel: string }) {
+export function JobWorkChoice({ lotId, opSeq, nextLabel, back }: { lotId: string; opSeq: number; nextLabel: string; back?: string }) {
   const [skipping, setSkipping] = useState(false);
 
   if (skipping) {
@@ -15,6 +15,7 @@ export function JobWorkChoice({ lotId, opSeq, nextLabel }: { lotId: string; opSe
       <form action={skipJobWorkAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="lotId" value={lotId} />
         <input type="hidden" name="opSeq" value={opSeq} />
+        <input type="hidden" name="back" value={back ?? "/production"} />
         <input
           name="reason"
           required

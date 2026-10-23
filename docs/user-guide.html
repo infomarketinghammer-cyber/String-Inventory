@@ -277,7 +277,7 @@ flowchart TD
 <div class="stage" id="production">
 <h3>6.6 Production and operation entry</h3>
 <div class="meta"><span><b>Who:</b> Production supervisor</span><span><b>Screen:</b> Stores &amp; Production → Production / Operations</span></div>
-<p>Each lot in the factory shows its current routing step. What you do depends on the step.</p>
+<p>The screen has one tab per routing operation, in routing order: <b>1. Coiling</b>, <b>2. Heat Treatment (JW)</b>, <b>3. Grinding</b>, <b>4. Plating (JW)</b>, then <b>5. Final Inspection →</b>. The same operations open under Production / Operations in the sidebar. Each tab shows how many lots are at that operation, and <b>All</b> shows every lot in production. Tabs come from the routing masters, so a new operation gets its own tab automatically. Each lot shows its current routing step; what you do depends on the step.</p>
 <h3>At an in-house step (coiling, grinding…)</h3>
 <ol class="steps">
   <li>The card shows <b>Planned</b>, <b>Processed so far</b> and <b>Pending</b>. At coiling, planned is the MRN's planned springs for the wire this lot holds; the wire's maximum by weight is shown under it. At later steps, planned is the good pieces from the previous step.</li>

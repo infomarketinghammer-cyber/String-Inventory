@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/server/policy";
+import type { OperationTab } from "@/lib/operations";
 
 interface NavItem {
   href: string;
@@ -85,8 +86,9 @@ const isActive = (path: string, href: string) => path === href || path.startsWit
  * Fixed left navigation: it never scrolls with the page (the main area has its own scroll),
  * and it scrolls on its own when the menu is taller than the window.
  */
-export function Sidebar({ role }: { role: Role }) {
+export function Sidebar({ role, productionOps = [] }: { role: Role; productionOps?: OperationTab[] }) {
   const path = usePathname() ?? "";
+  const inProduction = isActive(path, "/production");
   return (
     <aside className="no-print hidden md:flex w-64 shrink-0 h-full flex-col">
       {/* White brand band: the logo artwork is designed for a white background. Same height as the top bar. */}
@@ -106,16 +108,45 @@ export function Sidebar({ role }: { role: Role }) {
               <div className="nav-group px-3 text-[0.68rem] font-semibold uppercase tracking-[0.08em] mb-1.5">
                 {group.title}
               </div>
-              {visibleItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={isActive(path, item.href) ? "page" : undefined}
-                  className="nav-link block rounded-r-md px-3 py-1.5 text-sm"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {visibleItems.map((item) =>
+                item.href === "/production" ? (
+                  // Production / Operations opens into one sub-item per routing operation.
+                  <div key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={path === "/production" ? "page" : undefined}
+                      aria-expanded={inProduction}
+                      className={`nav-link block rounded-r-md px-3 py-1.5 text-sm ${inProduction ? "font-semibold" : ""}`}
+                    >
+                      {item.label} <span aria-hidden className="text-xs opacity-70">{inProduction ? "▾" : "▸"}</span>
+                    </Link>
+                    {inProduction && (
+                      <div className="mt-0.5 mb-1 ml-3 border-l pl-1" style={{ borderColor: "var(--nav-muted)" }}>
+                        {productionOps.map((op, i) => (
+                          <Link
+                            key={op.slug}
+                            href={`/production/${op.slug}`}
+                            aria-current={path === `/production/${op.slug}` ? "page" : undefined}
+                            className="nav-link block rounded-r-md px-3 py-1 text-[0.82rem]"
+                          >
+                            {i + 1}. {op.name}
+                            {op.jobWork && <span className="opacity-70"> (JW)</span>}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive(path, item.href) ? "page" : undefined}
+                    className="nav-link block rounded-r-md px-3 py-1.5 text-sm"
+                  >
+                    {item.label}
+                  </Link>
+                ),
+              )}
             </div>
           );
         })}
