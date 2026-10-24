@@ -30,10 +30,13 @@ export async function ProductionView({ tab, tabs, ok, err }: { tab?: string; tab
   const active = tabs.find((t) => t.slug === tab);
   const back = tab ? `/production/${tab}` : "/production";
 
-  const reasonCodes = await prisma.reasonCode.findMany({ where: { stage: "WIP", active: true } });
   // Planned / processed / pending of each lot's current operation, recomputed from the saved entries.
-  const progress = new Map<string, OperationProgress>();
-  for (const lot of lots) progress.set(lot.id, await operationProgress(prisma, lot));
+  // Fetched in parallel (one database round trip for all lots, not one after another).
+  const [reasonCodes, progressList] = await Promise.all([
+    prisma.reasonCode.findMany({ where: { stage: "WIP", active: true } }),
+    Promise.all(lots.map((lot) => operationProgress(prisma, lot))),
+  ]);
+  const progress = new Map<string, OperationProgress>(lots.map((lot, i) => [lot.id, progressList[i]!]));
 
   const tabClass = (on: boolean) =>
     `inline-flex items-center gap-2 rounded-t-md border-b-2 px-3 py-2 text-sm whitespace-nowrap ${on ? "font-semibold" : ""}`;

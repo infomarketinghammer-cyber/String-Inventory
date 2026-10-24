@@ -239,10 +239,14 @@ export async function openMrnsDetail() {
     include: { part: true, issues: { include: { lines: true }, orderBy: { createdAt: "asc" } }, productionLots: true },
     orderBy: { createdAt: "asc" },
   });
-  const names = await userNames(mrns.map((m) => m.createdById));
+  // All MRNs' issued kg in parallel (not one round trip after another).
+  const [names, issued] = await Promise.all([
+    userNames(mrns.map((m) => m.createdById)),
+    Promise.all(mrns.map((m) => netIssuedKg(prisma, m.id))),
+  ]);
   const rows = [];
-  for (const mrn of mrns) {
-    const issuedKg = round(await netIssuedKg(prisma, mrn.id));
+  for (const [i, mrn] of mrns.entries()) {
+    const issuedKg = round(issued[i]!);
     const requiredKg = round(Number(mrn.requiredKg));
     const derived = issuedKg <= 0.005 ? "OPEN" : issuedKg >= requiredKg - 0.005 ? "CLOSED" : "PARTIALLY_ISSUED";
     rows.push({
